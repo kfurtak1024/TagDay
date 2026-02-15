@@ -16,6 +16,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -62,10 +64,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.krfu.tagged.domain.TagValidation
 import dev.krfu.tagged.ui.MainViewModel
 import dev.krfu.tagged.ui.TabScreen
 import dev.krfu.tagged.ui.theme.TaggedTheme
@@ -245,9 +251,9 @@ private fun DayScreen(
                         onSelectToday()
                     } else if (abs(totalX) > abs(totalY) && abs(totalX) > swipeThresholdPx) {
                         if (totalX < 0f) {
-                            onSelectPreviousDay()
-                        } else {
                             onSelectNextDay()
+                        } else {
+                            onSelectPreviousDay()
                         }
                     }
                 }
@@ -334,17 +340,19 @@ private fun DayScreen(
                 if (uiState.daySummary.isEmpty()) {
                     Text("No tags for this day")
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        uiState.daySummary.chunked(2).forEach { rowItems ->
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                rowItems.forEach { summary ->
-                                    SummaryChip(
-                                        summary = summary,
-                                        onDeleteClick = { pendingDeleteSummary = summary }
-                                    )
-                                }
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val chipSpacing = 8.dp
+                        val maxChipWidth = (maxWidth - chipSpacing) / 2
+                        WrappingChipsLayout(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalSpacing = chipSpacing
+                        ) {
+                            uiState.daySummary.forEach { summary ->
+                                SummaryChip(
+                                    summary = summary,
+                                    onDeleteClick = { pendingDeleteSummary = summary },
+                                    modifier = Modifier.widthIn(max = maxChipWidth)
+                                )
                             }
                         }
                     }
@@ -415,13 +423,14 @@ private fun DayScreen(
 @Composable
 private fun SummaryChip(
     summary: dev.krfu.tagged.ui.TagSummaryUi,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val bgColor = Color(summary.colorArgb).copy(alpha = 0.18f)
     val borderColor = Color(summary.colorArgb)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(999.dp))
@@ -429,7 +438,12 @@ private fun SummaryChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(summary.label)
+        Text(
+            text = summary.label,
+            modifier = Modifier.weight(1f, fill = false),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
         summary.rating?.let { rating ->
             RatingStars(rating)
             if (summary.ratingCount > 1) {
@@ -498,7 +512,12 @@ private fun GlobalTagsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(tag.name, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = tag.name,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         Text(if (tag.hidden) "Hidden" else "Visible")
                     }
 
@@ -524,6 +543,7 @@ private fun GlobalTagsScreen(
         EditGlobalTagDialog(
             tag = tag,
             palette = uiState.colorPalette,
+            existingTagNames = uiState.globalTags.map { it.name },
             onDismiss = { editingTag = null },
             onSave = { newName, color, hidden ->
                 onUpdateTag(tag.name, newName, color, hidden)
@@ -541,6 +561,7 @@ private fun GlobalTagsScreen(
 private fun EditGlobalTagDialog(
     tag: dev.krfu.tagged.ui.GlobalTagUi,
     palette: List<Int>,
+    existingTagNames: List<String>,
     onDismiss: () -> Unit,
     onSave: (newName: String, colorArgb: Int, hidden: Boolean) -> Unit,
     onDelete: () -> Unit
@@ -548,6 +569,7 @@ private fun EditGlobalTagDialog(
     var name by remember(tag.name) { mutableStateOf(tag.name) }
     var hidden by remember(tag.hidden) { mutableStateOf(tag.hidden) }
     var selectedColor by remember(tag.colorArgb) { mutableStateOf(tag.colorArgb) }
+    var validationError by remember(tag.name, existingTagNames) { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -556,9 +578,22 @@ private fun EditGlobalTagDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = { name = it },
+                    onValueChange = { value ->
+                        name = value
+                        validationError = validateGlobalTagName(
+                            proposedName = value.trim(),
+                            currentName = tag.name,
+                            existingTagNames = existingTagNames
+                        )
+                    },
                     label = { Text("Name") },
                     singleLine = true,
+                    isError = validationError != null,
+                    supportingText = {
+                        validationError?.let { error ->
+                            Text(error, color = MaterialTheme.colorScheme.error)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -596,7 +631,20 @@ private fun EditGlobalTagDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name.trim(), selectedColor, hidden) }) {
+            TextButton(
+                onClick = {
+                    val trimmedName = name.trim()
+                    val error = validateGlobalTagName(
+                        proposedName = trimmedName,
+                        currentName = tag.name,
+                        existingTagNames = existingTagNames
+                    )
+                    validationError = error
+                    if (error == null) {
+                        onSave(trimmedName, selectedColor, hidden)
+                    }
+                }
+            ) {
                 Text("Save")
             }
         },
@@ -611,4 +659,77 @@ private fun EditGlobalTagDialog(
             }
         }
     )
+}
+
+@Composable
+private fun WrappingChipsLayout(
+    modifier: Modifier = Modifier,
+    horizontalSpacing: androidx.compose.ui.unit.Dp = 8.dp,
+    verticalSpacing: androidx.compose.ui.unit.Dp = 8.dp,
+    content: @Composable () -> Unit
+) {
+    Layout(
+        content = content,
+        modifier = modifier
+    ) { measurables, constraints ->
+        val horizontalSpacingPx = horizontalSpacing.roundToPx()
+        val verticalSpacingPx = verticalSpacing.roundToPx()
+        val childConstraints = constraints.copy(minWidth = 0, minHeight = 0)
+        val placeables = measurables.map { measurable -> measurable.measure(childConstraints) }
+
+        val maxWidth = if (constraints.maxWidth == Constraints.Infinity) Int.MAX_VALUE else constraints.maxWidth
+        val positions = ArrayList<Pair<Int, Int>>(placeables.size)
+
+        var x = 0
+        var y = 0
+        var lineHeight = 0
+        var usedWidth = 0
+
+        placeables.forEach { placeable ->
+            val nextX = if (x == 0) placeable.width else x + horizontalSpacingPx + placeable.width
+            val shouldWrap = x != 0 && nextX > maxWidth
+            if (shouldWrap) {
+                x = 0
+                y += lineHeight + verticalSpacingPx
+                lineHeight = 0
+            } else if (x != 0) {
+                x += horizontalSpacingPx
+            }
+
+            positions += x to y
+            x += placeable.width
+            if (x > usedWidth) usedWidth = x
+            if (placeable.height > lineHeight) lineHeight = placeable.height
+        }
+
+        val totalHeight = if (placeables.isEmpty()) 0 else y + lineHeight
+        val layoutWidth = usedWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
+        val layoutHeight = totalHeight.coerceIn(constraints.minHeight, constraints.maxHeight)
+
+        layout(layoutWidth, layoutHeight) {
+            placeables.forEachIndexed { index, placeable ->
+                val (px, py) = positions[index]
+                placeable.placeRelative(px, py)
+            }
+        }
+    }
+}
+
+private fun validateGlobalTagName(
+    proposedName: String,
+    currentName: String,
+    existingTagNames: List<String>
+): String? {
+    if (!TagValidation.isValidName(proposedName)) {
+        return "Invalid tag name. Use letters only with single '-' separators (e.g., dinner-with-family)."
+    }
+
+    val alreadyExists = existingTagNames.any { existing ->
+        existing != currentName && existing.equals(proposedName, ignoreCase = true)
+    }
+    if (alreadyExists) {
+        return "A tag with this name already exists."
+    }
+
+    return null
 }

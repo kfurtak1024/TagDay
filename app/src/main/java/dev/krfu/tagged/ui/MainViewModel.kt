@@ -89,7 +89,7 @@ class MainViewModel(
                 .filter { repoState.settings.showHiddenTags || repoState.globalTags[it.name]?.hidden != true }
                 .map(TagEntry::toUi),
             globalTags = repoState.globalTags.values
-                .sortedBy { it.name }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
                 .map { tag ->
                     GlobalTagUi(
                         name = tag.name,

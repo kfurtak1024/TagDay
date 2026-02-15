@@ -139,8 +139,8 @@ Security and integrity:
 
 ## Navigation requirements
 - Day view:
-  - Swipe left: one day back
-  - Swipe right: one day forward
+  - Swipe left: one day forward
+  - Swipe right: one day back
   - Swipe up: jump to today
   - Swipe down: Week view
 - Week view:

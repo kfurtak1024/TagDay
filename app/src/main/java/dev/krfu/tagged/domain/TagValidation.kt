@@ -19,7 +19,9 @@ object TagValidation {
         val name = parts.firstOrNull().orEmpty()
         if (!isValidName(name)) {
             return Result.failure(
-                IllegalArgumentException("Invalid tag name. Use letters with single '-' separators.")
+                IllegalArgumentException(
+                    "Invalid tag name. Use letters only with single '-' separators (e.g., dinner-with-family)."
+                )
             )
         }
 
