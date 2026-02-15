@@ -1,6 +1,11 @@
 ## Scope
 Tagged is an Android application for tagging calendar days, like a diary but with tags instead of notes.
 
+## UX principles
+- Interface should be minimalistic and simple.
+- Prefer concise, focused screens over dense detail views.
+- Day view must not include a separate `Entries` section; tags are presented through aggregated capsules/chips only.
+
 Primary scope for this iteration:
 - Add, view, and edit tags for a selected day (default: today)
 - Browse data in day/week/month/year views
@@ -71,7 +76,7 @@ When multiple entries of the same tag name exist on one day:
 ## Functional requirements
 ### Day tagging
 - User can add one or more tags to a specific day
-- User can view and edit tags of the currently selected day
+- User can view and edit tags of the currently selected day through chip-based summaries and global tag management controls
 - Initial selection is today
 
 ### Global tag management
@@ -83,7 +88,7 @@ Global tags are the canonical list of known tags.
 - User can mark/unmark a global tag as hidden
 
 ### Calendar views
-- Day view: full tag details for one day
+- Day view: full tag details for one day in a minimal chip-based presentation (no separate raw-entry list/section)
 - Week view: table layout (Monday at top, Sunday at bottom) with minimized tags as needed
 - Month view: summary only (for example, one or two selected tags plus count of additional tags)
 - Year view: summary only (same approach as month view)
@@ -135,6 +140,7 @@ Security and integrity:
 - Day view:
   - Swipe left: one day back
   - Swipe right: one day forward
+  - Swipe up: jump to today
   - Swipe down: Week view
 - Week view:
   - Tap day: Day view
