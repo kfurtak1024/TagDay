@@ -13,6 +13,8 @@ interface TaggedRepository {
 
     suspend fun removeEntry(entryId: Long)
 
+    suspend fun removeTagForDate(date: LocalDate, tagName: String)
+
     suspend fun renameGlobalTag(currentName: String, newName: String): Result<Unit>
 
     suspend fun deleteGlobalTag(name: String)

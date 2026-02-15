@@ -77,6 +77,7 @@ When multiple entries of the same tag name exist on one day:
 ### Day tagging
 - User can add one or more tags to a specific day
 - User can view and edit tags of the currently selected day through chip-based summaries and global tag management controls
+- User can remove a tag from the selected day directly from its chip action, with confirmation before deletion
 - Initial selection is today
 
 ### Global tag management

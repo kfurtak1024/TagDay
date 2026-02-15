@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -155,7 +156,8 @@ private fun TaggedApp(viewModel: MainViewModel) {
                         onAddClick = viewModel::addTagForSelectedDay,
                         onSelectPreviousDay = viewModel::selectPreviousDay,
                         onSelectNextDay = viewModel::selectNextDay,
-                        onSelectToday = viewModel::selectToday
+                        onSelectToday = viewModel::selectToday,
+                        onDeleteTagFromSelectedDay = viewModel::removeTagFromSelectedDay
                     )
 
                     TabScreen.GlobalTags -> GlobalTagsScreen(
@@ -201,7 +203,8 @@ private fun DayScreen(
     onAddClick: () -> Unit,
     onSelectPreviousDay: () -> Unit,
     onSelectNextDay: () -> Unit,
-    onSelectToday: () -> Unit
+    onSelectToday: () -> Unit,
+    onDeleteTagFromSelectedDay: (String) -> Unit
 ) {
     val monthYearFormatter = remember { DateTimeFormatter.ofPattern("MMMM uuuu") }
     val weekdayFormatter = remember { DateTimeFormatter.ofPattern("EEEE") }
@@ -210,6 +213,9 @@ private fun DayScreen(
     val isFuture = uiState.selectedDate.isAfter(today)
     val isPast = uiState.selectedDate.isBefore(today)
     val swipeThresholdPx = 100f
+    var pendingDeleteSummary by remember {
+        mutableStateOf<dev.krfu.tagged.ui.TagSummaryUi?>(null)
+    }
 
     Column(
         modifier = Modifier
@@ -334,7 +340,10 @@ private fun DayScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 rowItems.forEach { summary ->
-                                    SummaryChip(summary)
+                                    SummaryChip(
+                                        summary = summary,
+                                        onDeleteClick = { pendingDeleteSummary = summary }
+                                    )
                                 }
                             }
                         }
@@ -378,10 +387,36 @@ private fun DayScreen(
             }
         }
     }
+
+    pendingDeleteSummary?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteSummary = null },
+            title = { Text("Remove tag") },
+            text = { Text("Delete '${summary.name}' from this day?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteTagFromSelectedDay(summary.name)
+                        pendingDeleteSummary = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteSummary = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
-private fun SummaryChip(summary: dev.krfu.tagged.ui.TagSummaryUi) {
+private fun SummaryChip(
+    summary: dev.krfu.tagged.ui.TagSummaryUi,
+    onDeleteClick: () -> Unit
+) {
     val bgColor = Color(summary.colorArgb).copy(alpha = 0.18f)
     val borderColor = Color(summary.colorArgb)
 
@@ -400,6 +435,16 @@ private fun SummaryChip(summary: dev.krfu.tagged.ui.TagSummaryUi) {
             if (summary.ratingCount > 1) {
                 Text("(${summary.ratingCount})")
             }
+        }
+        IconButton(
+            onClick = onDeleteClick,
+            modifier = Modifier.size(18.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Remove tag",
+                modifier = Modifier.size(12.dp)
+            )
         }
     }
 }

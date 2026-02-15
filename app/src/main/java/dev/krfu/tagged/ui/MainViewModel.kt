@@ -30,6 +30,7 @@ data class DayEntryUi(
 )
 
 data class TagSummaryUi(
+    val name: String,
     val label: String,
     val colorArgb: Int,
     val rating: Int? = null,
@@ -131,6 +132,12 @@ class MainViewModel(
         }
     }
 
+    fun removeTagFromSelectedDay(tagName: String) {
+        viewModelScope.launch {
+            repository.removeTagForDate(selectedDate.value, tagName)
+        }
+    }
+
     fun selectPreviousDay() {
         selectedDate.update { it.minusDays(1) }
     }
@@ -174,6 +181,7 @@ class MainViewModel(
 }
 
 private fun TagSummary.toUi(): TagSummaryUi = TagSummaryUi(
+    name = name,
     label = label,
     colorArgb = colorArgb,
     rating = rating,

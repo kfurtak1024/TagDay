@@ -89,6 +89,13 @@ class RoomTaggedRepository(
         dao.deleteTagEntry(entryId)
     }
 
+    override suspend fun removeTagForDate(date: LocalDate, tagName: String) {
+        dao.deleteTagEntriesByDateAndName(
+            dateEpochDay = date.toEpochDay(),
+            name = tagName
+        )
+    }
+
     override suspend fun renameGlobalTag(currentName: String, newName: String): Result<Unit> {
         if (currentName == newName) return Result.success(Unit)
         if (!TagValidation.isValidName(newName)) {

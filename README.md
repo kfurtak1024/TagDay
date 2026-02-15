@@ -8,6 +8,7 @@ This repository now includes the first implementation slice:
 - Add tag entries with validation (`name`, `name:value`, `name:***`)
 - Same-day aggregation in capsule/chip UI
 - Minimal day interface (no separate raw `Entries` section)
+- Remove day tags from chip action with confirmation dialog
 - Rating visualization as 5-star display
 - Global tag list and editing (rename, color, hidden flag, delete from global list)
 - Settings action in top-right with `Show hidden tags` toggle

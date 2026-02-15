@@ -39,6 +39,9 @@ interface TaggedDao {
     @Query("DELETE FROM tag_entries WHERE id = :entryId")
     suspend fun deleteTagEntry(entryId: Long)
 
+    @Query("DELETE FROM tag_entries WHERE date_epoch_day = :dateEpochDay AND name = :name")
+    suspend fun deleteTagEntriesByDateAndName(dateEpochDay: Long, name: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSettings(settings: AppSettingsEntity)
 }
