@@ -1,11 +1,9 @@
 package dev.krfu.tagday.ui
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.krfu.tagday.data.TagDayRepository
-import dev.krfu.tagday.data.room.RoomTagDayRepository
-import dev.krfu.tagday.data.room.TagDayDatabase
 import dev.krfu.tagday.domain.TagSummary
 import dev.krfu.tagday.domain.aggregateDayTags
 import dev.krfu.tagday.model.TagEntry
@@ -56,11 +54,8 @@ data class MainUiState(
 )
 
 class MainViewModel(
-    application: Application
-) : AndroidViewModel(application) {
-    private val repository: TagDayRepository = RoomTagDayRepository(
-        TagDayDatabase.getInstance(application)
-    )
+    private val repository: TagDayRepository
+) : ViewModel() {
 
     private val selectedDate = MutableStateFlow(LocalDate.now())
     private val tagInput = MutableStateFlow("")
@@ -170,6 +165,18 @@ class MainViewModel(
     fun deleteGlobalTag(name: String) {
         viewModelScope.launch {
             repository.deleteGlobalTag(name)
+        }
+    }
+
+    class Factory(
+        private val repository: TagDayRepository
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+                return MainViewModel(repository) as T
+            }
+            throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }
     }
 }
