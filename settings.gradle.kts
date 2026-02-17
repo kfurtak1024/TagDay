@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Tagged"
+rootProject.name = "tagday"
 include(":app")

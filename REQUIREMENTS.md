@@ -1,5 +1,5 @@
 ## Scope
-Tagged is an Android application for tagging calendar days, like a diary but with tags instead of notes.
+tagday is an Android application for tagging calendar days, like a diary but with tags instead of notes.
 
 ## UX principles
 - Interface should be minimalistic and simple.

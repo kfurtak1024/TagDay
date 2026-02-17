@@ -33,7 +33,7 @@ Before PR: run `./gradlew lint testDebugUnitTest` at minimum.
 ## Coding Style & Naming
 - 4-space indentation, no wildcard imports.
 - `PascalCase` for types, `camelCase` for functions/variables, `UPPER_SNAKE_CASE` for constants.
-- Package names are lowercase and domain-based (for example `com.example.tagged.feature.day`).
+- Package names are lowercase and domain-based (for example `com.example.tagday.feature.day`).
 - Resource names use `snake_case` (for example `ic_tag_add`, `screen_day.xml`).
 - Document non-obvious decisions in short KDoc/comments.
 

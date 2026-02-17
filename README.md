@@ -1,6 +1,6 @@
-# Tagged
+# tagday
 
-Tagged is an Android app for tagging calendar days. It works like a diary with structured tags instead of free-form notes.
+tagday is an Android app for tagging calendar days. It works like a diary with structured tags instead of free-form notes.
 
 ## Current status
 This repository now includes the first implementation slice:
@@ -22,14 +22,14 @@ Not yet implemented:
 ## Architecture overview
 - UI: Jetpack Compose (`MainActivity`, tabbed day/global-tag screens)
 - State: `MainViewModel` with unidirectional UI state (`StateFlow`)
-- Data: `RoomTaggedRepository` over Room database/DAO
+- Data: `RoomtagdayRepository` over Room database/DAO
 - Domain: parsing/validation and aggregation in `domain/`
 
 Main packages:
-- `dev.krfu.tagged.ui`
-- `dev.krfu.tagged.data`
-- `dev.krfu.tagged.domain`
-- `dev.krfu.tagged.model`
+- `dev.krfu.tagday.ui`
+- `dev.krfu.tagday.data`
+- `dev.krfu.tagday.domain`
+- `dev.krfu.tagday.model`
 
 ## Setup
 1. Ensure Android Studio with Android SDK configured.

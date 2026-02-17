@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.krfu.tagged"
+    namespace = "dev.krfu.tagday"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -13,7 +13,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "dev.krfu.tagged"
+        applicationId = "dev.krfu.tagday"
         minSdk = 28
         targetSdk = 36
         versionCode = 1
