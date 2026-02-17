@@ -54,6 +54,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -74,7 +75,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.krfu.tagday.domain.TagValidation
 import dev.krfu.tagday.ui.MainViewModel
 import dev.krfu.tagday.ui.TabScreen
-import dev.krfu.tagday.ui.theme.tagdayTheme
+import dev.krfu.tagday.ui.theme.TagDayTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.abs
@@ -86,15 +87,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            tagdayTheme {
-                tagdayApp(viewModel)
+            TagDayTheme {
+                TagDayApp(viewModel)
             }
         }
     }
 }
 
 @Composable
-private fun tagdayApp(viewModel: MainViewModel) {
+private fun TagDayApp(viewModel: MainViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
@@ -104,7 +105,7 @@ private fun tagdayApp(viewModel: MainViewModel) {
             TopAppBar(
                 title = {
                     Text(
-                        text = "tagday",
+                        text = "TagDay",
                         fontWeight = FontWeight.SemiBold
                     )
                 },
@@ -568,7 +569,7 @@ private fun EditGlobalTagDialog(
 ) {
     var name by remember(tag.name) { mutableStateOf(tag.name) }
     var hidden by remember(tag.hidden) { mutableStateOf(tag.hidden) }
-    var selectedColor by remember(tag.colorArgb) { mutableStateOf(tag.colorArgb) }
+    var selectedColor by remember(tag.colorArgb) { mutableIntStateOf(tag.colorArgb) }
     var validationError by remember(tag.name, existingTagNames) { mutableStateOf<String?>(null) }
 
     AlertDialog(

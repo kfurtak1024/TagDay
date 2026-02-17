@@ -1,5 +1,5 @@
 ## Scope
-tagday is an Android application for tagging calendar days, like a diary but with tags instead of notes.
+TagDay is an Android application for tagging calendar days, like a diary but with tags instead of notes.
 
 ## UX principles
 - Interface should be minimalistic and simple.
@@ -58,7 +58,7 @@ When multiple entries of the same tag name exist on one day:
   - filled rating stars in yellow
   - remaining stars as blank/outline gray
   - example: `***` is shown as 3 yellow stars + 2 gray stars
-- If rating is aggregated to a non-integer value, display rounded value in stars and keep entry count visible (for example `★★★☆☆ (4)`).
+- If rating is aggregated to a noninteger value, display rounded value in stars and keep entry count visible (for example `★★★☆☆ (4)`).
 
 ### Tag color rules
 - Each global tag has an associated display color used across day/week/month/year views.

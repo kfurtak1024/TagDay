@@ -1,6 +1,6 @@
-# tagday
+# TagDay
 
-tagday is an Android app for tagging calendar days. It works like a diary with structured tags instead of free-form notes.
+TagDay is an Android app for tagging calendar days. It works like a diary with structured tags instead of free-form notes.
 
 ## Current status
 This repository now includes the first implementation slice:

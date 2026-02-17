@@ -1,7 +1,7 @@
 package dev.krfu.tagday.data.room
 
 import androidx.room.withTransaction
-import dev.krfu.tagday.data.tagdayRepository
+import dev.krfu.tagday.data.TagDayRepository
 import dev.krfu.tagday.domain.TagValidation
 import dev.krfu.tagday.model.AppSettings
 import dev.krfu.tagday.model.GlobalTag
@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlin.math.abs
 
-class RoomtagdayRepository(
-    private val database: tagdayDatabase
-) : tagdayRepository {
+class RoomTagDayRepository(
+    private val database: TagDayDatabase
+) : TagDayRepository {
     private val dao = database.tagdayDao()
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

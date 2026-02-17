@@ -1,10 +1,10 @@
 package dev.krfu.tagday.data
 
 import dev.krfu.tagday.model.RepositoryState
-import java.time.LocalDate
 import kotlinx.coroutines.flow.StateFlow
+import java.time.LocalDate
 
-interface tagdayRepository {
+interface TagDayRepository {
     val state: StateFlow<RepositoryState>
 
     fun palette(): List<Int>

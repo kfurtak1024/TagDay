@@ -8,7 +8,7 @@ import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface tagdayDao {
+interface TagDayDao {
     @Query("SELECT * FROM global_tags")
     fun observeGlobalTags(): Flow<List<GlobalTagEntity>>
 

@@ -10,18 +10,18 @@ import androidx.room.RoomDatabase
     version = 1,
     exportSchema = false
 )
-abstract class tagdayDatabase : RoomDatabase() {
-    abstract fun tagdayDao(): tagdayDao
+abstract class TagDayDatabase : RoomDatabase() {
+    abstract fun tagdayDao(): TagDayDao
 
     companion object {
         @Volatile
-        private var instance: tagdayDatabase? = null
+        private var instance: TagDayDatabase? = null
 
-        fun getInstance(context: Context): tagdayDatabase {
+        fun getInstance(context: Context): TagDayDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
-                    tagdayDatabase::class.java,
+                    TagDayDatabase::class.java,
                     "tagday.db"
                 ).build().also { db ->
                     instance = db

@@ -3,19 +3,19 @@ package dev.krfu.tagday.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import dev.krfu.tagday.data.tagdayRepository
-import dev.krfu.tagday.data.room.RoomtagdayRepository
-import dev.krfu.tagday.data.room.tagdayDatabase
+import dev.krfu.tagday.data.TagDayRepository
+import dev.krfu.tagday.data.room.RoomTagDayRepository
+import dev.krfu.tagday.data.room.TagDayDatabase
 import dev.krfu.tagday.domain.TagSummary
 import dev.krfu.tagday.domain.aggregateDayTags
 import dev.krfu.tagday.model.TagEntry
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -58,8 +58,8 @@ data class MainUiState(
 class MainViewModel(
     application: Application
 ) : AndroidViewModel(application) {
-    private val repository: tagdayRepository = RoomtagdayRepository(
-        tagdayDatabase.getInstance(application)
+    private val repository: TagDayRepository = RoomTagDayRepository(
+        TagDayDatabase.getInstance(application)
     )
 
     private val selectedDate = MutableStateFlow(LocalDate.now())
@@ -123,12 +123,6 @@ class MainViewModel(
                 .onFailure { error ->
                     inputError.value = error.message
                 }
-        }
-    }
-
-    fun removeEntry(entryId: Long) {
-        viewModelScope.launch {
-            repository.removeEntry(entryId)
         }
     }
 
