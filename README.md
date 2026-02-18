@@ -12,17 +12,18 @@ This repository now includes the first implementation slice:
 - Rating visualization as 5-star display
 - Global tag list and editing (rename, color, hidden flag, delete from global list)
 - Settings action in top-right with `Show hidden tags` toggle
+- Week/month/year calendar screens with summary views
+- Swipe navigation between day/week/month/year and period stepping
 - Room-backed local persistence and MVVM state flow
 - Unit tests for tag parsing/validation and day aggregation
 
 Not yet implemented:
-- Week/month/year screens and gesture navigation
 - Backup and restore
 
 ## Architecture overview
 - UI: Jetpack Compose (`MainActivity`, tabbed day/global-tag screens)
 - State: `MainViewModel` with unidirectional UI state (`StateFlow`)
-- Data: `RoomtagdayRepository` over Room database/DAO
+- Data: `RoomTagDayRepository` over Room database/DAO
 - Domain: parsing/validation and aggregation in `domain/`
 
 Main packages:

@@ -17,6 +17,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -67,7 +68,7 @@ class MainViewModelTest {
     }
 
     @Test
-    fun updateGlobalTag_whenRenameFails_setsInputErrorAndSkipsUpdates() = runTest {
+    fun updateGlobalTag_whenRenameFails_setsGlobalTagErrorAndSkipsUpdates() = runTest {
         val repository = FakeTagDayRepository(
             renameResult = Result.failure(IllegalArgumentException("Name exists"))
         )
@@ -83,7 +84,7 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("Name exists", state.inputError)
+        assertEquals("Name exists", state.globalTagError)
         assertTrue(repository.updateColorCalls.isEmpty())
         assertTrue(repository.updateHiddenCalls.isEmpty())
         collector.cancel()
@@ -107,6 +108,104 @@ class MainViewModelTest {
         viewModel.selectToday()
         advanceUntilIdle()
         assertEquals(LocalDate.now(), viewModel.uiState.value.selectedDate)
+        collector.cancel()
+    }
+
+    @Test
+    fun screenSelection_changesSelectedTabAsExpected() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+
+        viewModel.showWeek()
+        advanceUntilIdle()
+        assertEquals(TabScreen.Week, viewModel.uiState.value.selectedTab)
+
+        viewModel.showMonth()
+        advanceUntilIdle()
+        assertEquals(TabScreen.Month, viewModel.uiState.value.selectedTab)
+
+        viewModel.showYear()
+        advanceUntilIdle()
+        assertEquals(TabScreen.Year, viewModel.uiState.value.selectedTab)
+
+        viewModel.selectTab(TabScreen.GlobalTags)
+        advanceUntilIdle()
+        assertEquals(TabScreen.GlobalTags, viewModel.uiState.value.selectedTab)
+
+        viewModel.showDay()
+        advanceUntilIdle()
+        assertEquals(TabScreen.Day, viewModel.uiState.value.selectedTab)
+        collector.cancel()
+    }
+
+    @Test
+    fun selectToday_whenNotOnDayTab_resetsToTodayAndDayTab() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+
+        viewModel.showYear()
+        viewModel.selectPreviousYear()
+        advanceUntilIdle()
+        assertNotEquals(TabScreen.Day, viewModel.uiState.value.selectedTab)
+        assertNotEquals(LocalDate.now(), viewModel.uiState.value.selectedDate)
+
+        viewModel.selectToday()
+        advanceUntilIdle()
+        assertEquals(TabScreen.Day, viewModel.uiState.value.selectedTab)
+        assertEquals(LocalDate.now(), viewModel.uiState.value.selectedDate)
+        collector.cancel()
+    }
+
+    @Test
+    fun periodNavigation_changesDateByExpectedAmount() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+        val initial = viewModel.uiState.value.selectedDate
+
+        viewModel.selectPreviousWeek()
+        advanceUntilIdle()
+        assertEquals(initial.minusWeeks(1), viewModel.uiState.value.selectedDate)
+
+        viewModel.selectNextWeek()
+        advanceUntilIdle()
+        assertEquals(initial, viewModel.uiState.value.selectedDate)
+
+        viewModel.selectNextMonth()
+        advanceUntilIdle()
+        assertEquals(initial.plusMonths(1), viewModel.uiState.value.selectedDate)
+
+        viewModel.selectPreviousMonth()
+        advanceUntilIdle()
+        assertEquals(initial, viewModel.uiState.value.selectedDate)
+
+        viewModel.selectNextYear()
+        advanceUntilIdle()
+        assertEquals(initial.plusYears(1), viewModel.uiState.value.selectedDate)
+
+        viewModel.selectPreviousYear()
+        advanceUntilIdle()
+        assertEquals(initial, viewModel.uiState.value.selectedDate)
+        collector.cancel()
+    }
+
+    @Test
+    fun openDay_setsDateAndSwitchesToDayTab() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+        val target = LocalDate.of(2026, 3, 4)
+
+        viewModel.showMonth()
+        advanceUntilIdle()
+        assertEquals(TabScreen.Month, viewModel.uiState.value.selectedTab)
+
+        viewModel.openDay(target)
+        advanceUntilIdle()
+        assertEquals(target, viewModel.uiState.value.selectedDate)
+        assertEquals(TabScreen.Day, viewModel.uiState.value.selectedTab)
         collector.cancel()
     }
 

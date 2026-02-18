@@ -20,7 +20,7 @@ import kotlin.math.abs
 class RoomTagDayRepository(
     private val database: TagDayDatabase
 ) : TagDayRepository {
-    private val dao = database.tagdayDao()
+    private val dao = database.tagDayDao()
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

@@ -11,7 +11,7 @@ import androidx.room.RoomDatabase
     exportSchema = false
 )
 abstract class TagDayDatabase : RoomDatabase() {
-    abstract fun tagdayDao(): TagDayDao
+    abstract fun tagDayDao(): TagDayDao
 
     companion object {
         @Volatile
