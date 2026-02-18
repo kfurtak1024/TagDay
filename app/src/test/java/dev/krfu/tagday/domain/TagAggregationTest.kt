@@ -65,4 +65,51 @@ class TagAggregationTest {
         assertTrue(hiddenOff.isEmpty())
         assertEquals(1, hiddenOn.size)
     }
+
+    @Test
+    fun aggregateDayTags_whenMixedValueAndRating_prefersRatingSummary() {
+        val date = LocalDate.of(2026, 2, 15)
+        val entries = listOf(
+            TagEntry(1, date, "workout", value = "run"),
+            TagEntry(2, date, "workout", rating = 4)
+        )
+
+        val result = aggregateDayTags(entries, emptyMap(), showHiddenTags = false).first()
+
+        assertEquals("workout", result.label)
+        assertEquals(4, result.rating)
+        assertEquals(1, result.ratingCount)
+    }
+
+    @Test
+    fun aggregateDayTags_whenRatingAverageAtHalf_roundsHalfUp() {
+        val date = LocalDate.of(2026, 2, 15)
+        val entries = listOf(
+            TagEntry(1, date, "focus", rating = 2),
+            TagEntry(2, date, "focus", rating = 3),
+            TagEntry(3, date, "train", rating = 3),
+            TagEntry(4, date, "train", rating = 4)
+        )
+
+        val result = aggregateDayTags(entries, emptyMap(), showHiddenTags = false)
+            .associateBy { it.name }
+
+        assertEquals(3, result.getValue("focus").rating)
+        assertEquals(4, result.getValue("train").rating)
+    }
+
+    @Test
+    fun aggregateDayTags_whenRatingsOutOfRange_clampsToValidRange() {
+        val date = LocalDate.of(2026, 2, 15)
+        val entries = listOf(
+            TagEntry(1, date, "low", rating = 0),
+            TagEntry(2, date, "high", rating = 8)
+        )
+
+        val result = aggregateDayTags(entries, emptyMap(), showHiddenTags = false)
+            .associateBy { it.name }
+
+        assertEquals(1, result.getValue("low").rating)
+        assertEquals(5, result.getValue("high").rating)
+    }
 }

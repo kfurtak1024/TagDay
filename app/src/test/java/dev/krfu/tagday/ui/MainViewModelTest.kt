@@ -1,7 +1,10 @@
 package dev.krfu.tagday.ui
 
 import dev.krfu.tagday.data.TagDayRepository
+import dev.krfu.tagday.model.AppSettings
+import dev.krfu.tagday.model.GlobalTag
 import dev.krfu.tagday.model.RepositoryState
+import dev.krfu.tagday.model.TagEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -18,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -209,6 +213,109 @@ class MainViewModelTest {
         collector.cancel()
     }
 
+    @Test
+    fun setShowHiddenTags_delegatesToRepository() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+
+        viewModel.setShowHiddenTags(true)
+        viewModel.setShowHiddenTags(false)
+        advanceUntilIdle()
+
+        assertEquals(listOf(true, false), repository.setShowHiddenTagsCalls)
+    }
+
+    @Test
+    fun deleteGlobalTag_delegatesToRepository() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+
+        viewModel.deleteGlobalTag("vacation")
+        advanceUntilIdle()
+
+        assertEquals(listOf("vacation"), repository.deleteGlobalTagCalls)
+    }
+
+    @Test
+    fun updateGlobalTag_whenRenameSucceeds_updatesColorAndHidden() = runTest {
+        val repository = FakeTagDayRepository()
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+
+        viewModel.updateGlobalTag(
+            currentName = "old-tag",
+            newName = "new-tag",
+            colorArgb = 0xFF123456.toInt(),
+            hidden = true
+        )
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(FakeTagDayRepository.UpdateColorCall("new-tag", 0xFF123456.toInt())),
+            repository.updateColorCalls
+        )
+        assertEquals(
+            listOf(FakeTagDayRepository.UpdateHiddenCall("new-tag", true)),
+            repository.updateHiddenCalls
+        )
+        assertNull(viewModel.uiState.value.globalTagError)
+        collector.cancel()
+    }
+
+    @Test
+    fun updateTagInput_whenInputErrorPresent_clearsInputError() = runTest {
+        val repository = FakeTagDayRepository(
+            addTagResult = Result.failure(IllegalArgumentException("Invalid tag"))
+        )
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+
+        viewModel.updateTagInput("invalid")
+        viewModel.addTagForSelectedDay()
+        advanceUntilIdle()
+        assertEquals("Invalid tag", viewModel.uiState.value.inputError)
+
+        viewModel.updateTagInput("valid-tag")
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.inputError)
+        collector.cancel()
+    }
+
+    @Test
+    fun summaries_whenHiddenTagsDisabled_excludeHiddenTagsInWeekMonthAndYear() = runTest {
+        val today = LocalDate.now()
+        val repoState = RepositoryState(
+            globalTags = mapOf(
+                "visible-tag" to GlobalTag(name = "visible-tag", colorArgb = 0xFF111111.toInt(), hidden = false),
+                "hidden-tag" to GlobalTag(name = "hidden-tag", colorArgb = 0xFF222222.toInt(), hidden = true)
+            ),
+            entriesByDate = mapOf(
+                today to listOf(
+                    TagEntry(id = 1, date = today, name = "visible-tag"),
+                    TagEntry(id = 2, date = today, name = "hidden-tag")
+                )
+            ),
+            settings = AppSettings(showHiddenTags = false)
+        )
+        val repository = FakeTagDayRepository(state = MutableStateFlow(repoState))
+        val viewModel = MainViewModel(repository)
+        val collector = startCollecting(viewModel)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        val weekLabels = state.weekSummary.first { it.date == today }.topLabels
+        val monthLabels = state.monthSummary.first { it.date == today }.topLabels
+        val yearLabels = state.yearSummary.first { it.month == today.monthValue }.topLabels
+
+        assertTrue(weekLabels.contains("visible-tag"))
+        assertFalse(weekLabels.contains("hidden-tag"))
+        assertTrue(monthLabels.contains("visible-tag"))
+        assertFalse(monthLabels.contains("hidden-tag"))
+        assertTrue(yearLabels.contains("visible-tag"))
+        assertFalse(yearLabels.contains("hidden-tag"))
+        collector.cancel()
+    }
+
     private fun TestScope.startCollecting(viewModel: MainViewModel): Job {
         return backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.uiState.collect { }
@@ -241,6 +348,8 @@ private class FakeTagDayRepository(
     val addTagCalls = mutableListOf<AddTagCall>()
     val updateColorCalls = mutableListOf<UpdateColorCall>()
     val updateHiddenCalls = mutableListOf<UpdateHiddenCall>()
+    val deleteGlobalTagCalls = mutableListOf<String>()
+    val setShowHiddenTagsCalls = mutableListOf<Boolean>()
 
     override fun palette(): List<Int> = listOf(0xFF1D4ED8.toInt())
 
@@ -257,7 +366,9 @@ private class FakeTagDayRepository(
         return renameResult
     }
 
-    override suspend fun deleteGlobalTag(name: String) = Unit
+    override suspend fun deleteGlobalTag(name: String) {
+        deleteGlobalTagCalls += name
+    }
 
     override suspend fun updateGlobalTagColor(name: String, colorArgb: Int) {
         updateColorCalls += UpdateColorCall(name, colorArgb)
@@ -267,5 +378,7 @@ private class FakeTagDayRepository(
         updateHiddenCalls += UpdateHiddenCall(name, hidden)
     }
 
-    override suspend fun setShowHiddenTags(show: Boolean) = Unit
+    override suspend fun setShowHiddenTags(show: Boolean) {
+        setShowHiddenTagsCalls += show
+    }
 }
