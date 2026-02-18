@@ -14,29 +14,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun TagDayApp(viewModel: MainViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -49,10 +41,11 @@ fun TagDayApp(viewModel: MainViewModel) {
                     )
                 },
                 actions = {
-                    val isGlobalTags = uiState.selectedTab == TabScreen.GlobalTags
+                    val isSecondaryScreen = uiState.selectedTab == TabScreen.GlobalTags ||
+                        uiState.selectedTab == TabScreen.Settings
                     IconButton(
                         onClick = {
-                            if (isGlobalTags) {
+                            if (isSecondaryScreen) {
                                 viewModel.showDay()
                             } else {
                                 viewModel.selectTab(TabScreen.GlobalTags)
@@ -60,19 +53,19 @@ fun TagDayApp(viewModel: MainViewModel) {
                         }
                     ) {
                         Icon(
-                            imageVector = if (isGlobalTags) {
+                            imageVector = if (isSecondaryScreen) {
                                 Icons.AutoMirrored.Filled.ArrowBack
                             } else {
                                 Icons.Default.LocalOffer
                             },
-                            contentDescription = if (isGlobalTags) {
+                            contentDescription = if (isSecondaryScreen) {
                                 "Back to calendar"
                             } else {
                                 "Open global tags"
                             }
                         )
                     }
-                    IconButton(onClick = { showSettings = true }) {
+                    IconButton(onClick = { viewModel.selectTab(TabScreen.Settings) }) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Open settings"
@@ -137,33 +130,13 @@ fun TagDayApp(viewModel: MainViewModel) {
                         onUpdateTag = viewModel::updateGlobalTag,
                         onDeleteTag = viewModel::deleteGlobalTag
                     )
+
+                    TabScreen.Settings -> SettingsScreen(
+                        uiState = uiState,
+                        onShowHiddenTagsChanged = viewModel::setShowHiddenTags
+                    )
                 }
             }
         }
-    }
-
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            title = { Text("Settings") },
-            text = {
-                androidx.compose.foundation.layout.Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Show hidden tags")
-                    Switch(
-                        checked = uiState.showHiddenTags,
-                        onCheckedChange = viewModel::setShowHiddenTags
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSettings = false }) {
-                    Text("Close")
-                }
-            }
-        )
     }
 }

@@ -23,7 +23,8 @@ enum class TabScreen {
     Week,
     Month,
     Year,
-    GlobalTags
+    GlobalTags,
+    Settings
 }
 
 data class DayEntryUi(
