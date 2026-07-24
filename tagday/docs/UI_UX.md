@@ -35,9 +35,8 @@ delegates to stateless `DayContent`.
 ┌─────────────────────────────┐
 │  Today, 24 July 2026         │  ← header, static in M1 (no prev/next — that's M4)
 ├─────────────────────────────┤
-│  walk (2)                    │  ← tag group row
-│  reading                     │  ← tag group row (single instance, no count)
-│  meditation                  │
+│  (walk (2) ⓧ) (reading ⓧ)    │  ← capsules, wrap in a flow row
+│  (meditation ⓧ)              │
 │                               │
 │                               │
 ├─────────────────────────────┤
@@ -45,14 +44,25 @@ delegates to stateless `DayContent`.
 └─────────────────────────────┘
 ```
 
-- Each row is one `TagDisplayGroup` (from `ARCHITECTURE.md`), rendered per the
-  `FEATURES.md` grouping rules — in M1 this only ever produces Simple-style rows
-  (`name` or `name (count)`), since Rated/Valued don't exist until M2.
-- **Tap a row** → opens a bottom sheet listing the individual instances behind that
-  group, each with its own remove action (per the resolved "manage individual
-  instances" decision in `FEATURES.md`). For a Simple tag this is just a plain list of
-  timestamps with a delete icon each — unglamorous, but keeps M1's interaction model
-  identical to what M2 will reuse for Rated/Valued groups.
+- Each capsule is one `TagDisplayGroup` (from `ARCHITECTURE.md`), rendered per the
+  `FEATURES.md` grouping rules — in M1 this only ever produces Simple-style capsules
+  (`name` or `name (count)`), since Rated/Valued don't exist until M2. Capsules wrap in
+  a flow row rather than stacking one-per-line — this is Day's own visual language for
+  M1; whether Week's M4 chip overview reuses it is an open decision, not made yet.
+- Each capsule carries the tag's color as its background/accent and a small trailing
+  "x" affordance, distinct from tapping the capsule body.
+- **Tap the capsule body** → opens a bottom sheet listing the individual instances
+  behind that group, each with its own remove action (per the resolved "manage
+  individual instances" decision in `FEATURES.md`). For a Simple tag this is just a
+  plain list of timestamps with a delete icon each — unglamorous, but keeps M1's
+  interaction model identical to what M2 will reuse for Rated/Valued groups.
+- **Tap the trailing "x"** → a quick-delete shortcut, behavior depends on the group's
+  instance count:
+  - **Exactly one instance**: removed immediately, no sheet — the common case doesn't
+    need a picker.
+  - **More than one instance**: opens the same instance-list sheet as tapping the
+    body, since the user still needs to pick which one — the "x" isn't a separate
+    code path here, just the same affordance reached from either tap target.
 - **No date navigation in M1.** The header shows today's date but isn't tappable and
   there are no prev/next controls — that's deliberately deferred to M4's swipe
   gestures, per the milestone scope. Don't add a stopgap arrow button; it'd just be
@@ -109,6 +119,8 @@ Triggered by the FAB.
 - **M3** replaces `TagsPlaceholderScreen` with the real Tags management screen (list,
   filter, rename, recolor, delete) — full spec deferred until then.
 - **M4** replaces the static header with swipeable zoom levels and adds Week/Month/Year
-  layouts (chip overview, single-tag heatmap) — full spec deferred until then.
+  layouts (chip overview, single-tag heatmap) — full spec deferred until then, including
+  whether Week's multi-tag chips reuse Day's capsule-with-"x" visual language above or
+  introduce their own (Week has no per-instance delete affordance to design around yet).
 - **M5** adds a Drive backup/restore entry point — likely a simple settings-style
   screen reachable from somewhere in the nav shell (exact placement TBD when reached).

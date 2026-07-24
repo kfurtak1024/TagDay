@@ -19,18 +19,18 @@ within the same subtree.
 
 ## Naming conventions
 
-| Kind | Pattern | Example |
-|---|---|---|
-| Room entity | Singular noun, no suffix | `Tag`, `TagInstance` |
-| Room DAO | `XyzDao` | `TagDao`, `TagInstanceDao` |
-| Repository interface | `XyzRepository` | `TagRepository` |
-| Repository impl | `XyzRepositoryImpl` | `TagRepositoryImpl` |
-| Hilt module | `XyzModule` | `DatabaseModule`, `RepositoryModule` |
-| ViewModel | `XyzViewModel` | `DayViewModel`, `TagsViewModel` |
-| UI state | `XyzUiState` | `DayUiState`, `TagsUiState` |
-| Screen composable | `XyzScreen` | `DayScreen`, `TagsScreen` |
-| Stateless content composable | `XyzContent` | `DayContent` (see below) |
-| UI-facing display model | `XyzDisplay*` / descriptive noun | `TagDisplayGroup` |
+| Kind                         | Pattern                          | Example                              |
+|------------------------------|----------------------------------|--------------------------------------|
+| Room entity                  | Singular noun, no suffix         | `Tag`, `TagInstance`                 |
+| Room DAO                     | `XyzDao`                         | `TagDao`, `TagInstanceDao`           |
+| Repository interface         | `XyzRepository`                  | `TagRepository`                      |
+| Repository impl              | `XyzRepositoryImpl`              | `TagRepositoryImpl`                  |
+| Hilt module                  | `XyzModule`                      | `DatabaseModule`, `RepositoryModule` |
+| ViewModel                    | `XyzViewModel`                   | `DayViewModel`, `TagsViewModel`      |
+| UI state                     | `XyzUiState`                     | `DayUiState`, `TagsUiState`          |
+| Screen composable            | `XyzScreen`                      | `DayScreen`, `TagsScreen`            |
+| Stateless content composable | `XyzContent`                     | `DayContent` (see below)             |
+| UI-facing display model      | `XyzDisplay*` / descriptive noun | `TagDisplayGroup`                    |
 
 One top-level public declaration per file; filename matches it exactly
 (`TagRepository.kt` contains only `TagRepository`).
@@ -42,7 +42,7 @@ One top-level public declaration per file; filename matches it exactly
   `null` selections) — no `lateinit`, no nullable `UiState?` at the collection site.
 - ViewModel exposes exactly one:
   ```kotlin
-  val uiState: StateFlow<DayUiState> = /* combine/map repository flows */
+  val uiState: StateFlow<DayUiState> = combinedRepositoryFlows // combine/map repository flows
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayUiState())
   ```
 - No sealed-class `Intent`/`Effect` dispatch system (see `ARCHITECTURE.md` § State
@@ -95,5 +95,5 @@ One top-level public declaration per file; filename matches it exactly
 ## Open notes for later docs
 
 - `TESTING.md` should define test class/method naming (e.g. `given...when...then` vs.
-  backtick-named `fun \`adds tag to day\`()`), building on the fake-Repository approach
-  from `ARCHITECTURE.md` § Testability.
+  backtick-named `` `fun `adds tag to day`()` ``), building on the fake-Repository
+  approach from `ARCHITECTURE.md` § Testability.

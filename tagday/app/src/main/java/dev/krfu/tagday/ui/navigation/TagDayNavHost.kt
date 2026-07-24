@@ -5,7 +5,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import dev.krfu.tagday.ui.calendar.CalendarPlaceholderScreen
+import dev.krfu.tagday.ui.calendar.day.DayScreen
 import dev.krfu.tagday.ui.tags.TagsPlaceholderScreen
 
 @Composable
@@ -18,7 +18,7 @@ fun TagDayNavHost(
         startDestination = TagDayDestination.CALENDAR.route,
         modifier = modifier,
     ) {
-        composable(TagDayDestination.CALENDAR.route) { CalendarPlaceholderScreen() }
+        composable(TagDayDestination.CALENDAR.route) { DayScreen() }
         composable(TagDayDestination.TAGS.route) { TagsPlaceholderScreen() }
     }
 }

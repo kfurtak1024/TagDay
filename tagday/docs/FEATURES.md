@@ -130,3 +130,8 @@ Management screen for the tag repository.
   each instance can be edited or removed independently. Removing the last instance in a
   group simply removes that instance, and the group disappears from the day's display
   once empty (no separate "clear group" action needed).
+- **Quick-delete on Day view**: each group is also rendered with a small "x" affordance
+  (see `UI_UX.md` § Day screen) as a shortcut around opening the instance list — for a
+  single-instance group it removes that instance immediately; for a multi-instance
+  group it falls back to the same instance-list sheet, since a specific instance still
+  needs picking.
