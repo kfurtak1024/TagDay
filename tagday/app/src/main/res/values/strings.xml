@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">TagDay</string>
+    <string name="nav_calendar_label">Calendar</string>
+    <string name="nav_tags_label">Tags</string>
+    <string name="calendar_placeholder_message">Calendar view — coming soon</string>
+    <string name="tags_placeholder_message">Tags view — coming soon</string>
+</resources>
