@@ -113,3 +113,49 @@ schema. Since there was no real user data at stake yet, the schema bump used
 `fallbackToDestructiveMigration()` rather than a written `Migration` — see
 `DATA_MODEL.md` § Open notes. Once the app has real installs, schema changes of this
 kind need an actual migration path instead.
+
+---
+
+## ADR-008: An all-unrated Rated group summarizes like Simple
+
+**Decision:** When a Rated tag's group for a day has zero rated instances (every
+`TagInstance.rating` is `null`), its display summary falls back to the same bare
+`name`/`name (count)` format Simple uses, instead of attempting a star average.
+
+**Alternative considered:** Show a placeholder star state (e.g. `☆☆☆☆☆` or "not rated
+yet") for an all-unrated group.
+
+**Why:** `DATA_MODEL.md` documents that a Rated instance can exist unrated and be rated
+later (`FEATURES.md` § Resolved decisions: rating can be set at any time, not just at
+creation) — so an all-unrated group is a normal, expected state, not an edge case to
+special-case away. `mapNotNull { it.rating }.average()` is `NaN` for an empty list, and
+`NaN.roundToInt()` throws, so this needed a real fallback rather than being ignored. A
+placeholder star state would need new UI just for a transient state; reusing Simple's
+existing bare-name format needed no new code and reads naturally ("freediving" — no
+rating yet — rather than "freediving: ☆☆☆☆☆"). See `TagInstanceRepositoryImpl.summarize()`.
+
+---
+
+## ADR-009: Quick-entry bar replaces the modal add-tag sheet
+
+**Decision:** The FAB + modal `AddTagSheet` bottom sheet is replaced with a persistent
+text field pinned to the bottom of the Day screen (`TagQuickEntryBar`), always visible,
+with a "+" submit button inside it. Existing-tag suggestions appear above the field as
+the user types. Tag type is inferred from input syntax instead of always requiring an
+explicit picker: `name:***` auto-creates a Rated tag seeded with that star rating
+(clamped to 5); `name:text` auto-creates a Valued tag seeded with that value; a plain
+`name` with no existing match falls back to an explicit Simple/Rated/Valued chip row.
+Color is auto-assigned by cycling through `TagPalette`, removing manual color choice
+from tag creation entirely (deferred to M3's Tags view, alongside renaming).
+
+**Alternative considered:** Keep `AddTagSheet` as-is and layer the colon-syntax parsing
+onto its existing search field as an optional shortcut, leaving the modal interaction
+model and manual color palette in place.
+
+**Why:** Direct user request for a lighter-weight, always-available interaction — a
+persistent field removes a modal hop for the single most frequent action in the app,
+and syntax inference removes an extra tap in the two cases where the intended type is
+already unambiguous from what was typed. Manual color choice was cut rather than
+squeezed into the inline flow because there's no natural place for a palette next to a
+one-line field; recoloring already belongs to M3's Tags view, so tags created via
+quick-entry are simply auto-colored until then. See `UI_UX.md` § Quick-entry tag bar.

@@ -54,8 +54,8 @@ from this row.
 | `id` | `Long` (PK, autogenerate) | Needed so individual instances can be edited/removed independently (resolved decision). |
 | `tagId` | `Long` (FK → `Tag.id`, `CASCADE` on delete) | Cascade matches the resolved tag-deletion behavior — the confirmation dialog is a UI/repository concern, not a DB one. |
 | `date` | `Int` (epoch day) | Stored as an epoch day (not a date string) so range queries (`BETWEEN`) are cheap and index-friendly. |
-| `rating` | `Int?` | 1–5, only meaningful when the parent `Tag.type == RATED`. Nullable — a Rated instance can exist "unrated" and be set later. |
-| `value` | `String?` | Free text, only meaningful when the parent `Tag.type == VALUED`. |
+| `rating` | `Int?` | 1–5, only meaningful when the parent `Tag.type == RATED`. Nullable — a Rated instance can be seeded at creation (quick-entry shorthand `name:***`) or left "unrated" and set later. |
+| `value` | `String?` | Free text, only meaningful when the parent `Tag.type == VALUED`. Nullable for the same reason — seedable at creation (`name:text`) or set later. |
 | `createdAt` | `Long` (epoch millis) | Tie-breaker for ordering multiple instances added the same day. |
 
 ```kotlin

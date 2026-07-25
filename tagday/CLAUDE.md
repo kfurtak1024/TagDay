@@ -52,6 +52,7 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 
 ## Current status
 
-Documentation phase complete for M0/M1 scope. M1 (Day view, Simple tags) is implemented.
-Currently applying the ADR-007 schema change (type moved from `TagInstance` to `Tag`) —
-see `docs/DECISIONS.md`.
+M0/M1/M2 are implemented: Day view with Simple, Rated, and Valued tags, full grouping/
+aggregation, and per-instance editing. Adding a tag uses an always-visible quick-entry
+bar (`TagQuickEntryBar`) with syntax-based type inference and auto-assigned color —
+see ADR-009 in `docs/DECISIONS.md`. Next up is M3 (Tags view) — see `docs/MILESTONES.md`.

@@ -14,7 +14,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var isAddSheetOpen by remember { mutableStateOf(false) }
     var selectedGroupKey by remember { mutableStateOf<Long?>(null) }
     val selectedGroup = selectedGroupKey?.let { tagId ->
         uiState.groups.find { it.tagId == tagId }
@@ -28,7 +27,8 @@ fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewM
 
     DayContent(
         uiState = uiState,
-        onAddTagClick = { isAddSheetOpen = true },
+        onAddExistingTag = { tagId -> viewModel.addExistingTag(tagId) },
+        onCreateTag = { name, type, rating, value -> viewModel.createTagAndAdd(name, type, rating, value) },
         onGroupClick = { group -> selectedGroupKey = group.tagId },
         onGroupQuickRemove = { group ->
             // A single instance can be removed directly; anything more still needs picking.
@@ -41,25 +41,11 @@ fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewM
         modifier = modifier,
     )
 
-    if (isAddSheetOpen) {
-        AddTagSheet(
-            allTags = uiState.allTags,
-            onDismiss = { isAddSheetOpen = false },
-            onExistingTagSelected = { tagId ->
-                viewModel.addExistingTag(tagId)
-                isAddSheetOpen = false
-            },
-            onCreateTag = { name, color ->
-                viewModel.createTagAndAdd(name, color)
-                isAddSheetOpen = false
-            },
-        )
-    }
-
     selectedGroup?.let { group ->
         InstanceListSheet(
             group = group,
             onDismiss = { selectedGroupKey = null },
+            onUpdateInstance = { instance -> viewModel.updateInstance(instance) },
             onRemoveInstance = { instance -> viewModel.removeInstance(instance) },
         )
     }

@@ -15,9 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -44,20 +42,20 @@ private val dateHeaderFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy")
 @Composable
 fun DayContent(
     uiState: DayUiState,
-    onAddTagClick: () -> Unit,
+    onAddExistingTag: (tagId: Long) -> Unit,
+    onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
     onGroupClick: (TagDisplayGroup) -> Unit,
     onGroupQuickRemove: (TagDisplayGroup) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
         modifier = modifier,
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddTagClick) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.day_add_tag_content_description),
-                )
-            }
+        bottomBar = {
+            TagQuickEntryBar(
+                allTags = uiState.allTags,
+                onAddExistingTag = onAddExistingTag,
+                onCreateTag = onCreateTag,
+            )
         },
     ) { innerPadding ->
         Column(
@@ -175,7 +173,8 @@ private fun DayContentPreview() {
                     ),
                 ),
             ),
-            onAddTagClick = {},
+            onAddExistingTag = {},
+            onCreateTag = { _, _, _, _ -> },
             onGroupClick = {},
             onGroupQuickRemove = {},
         )
@@ -188,7 +187,8 @@ private fun DayContentEmptyPreview() {
     TagDayTheme {
         DayContent(
             uiState = DayUiState(isLoading = false, date = LocalDate.of(2026, 7, 25)),
-            onAddTagClick = {},
+            onAddExistingTag = {},
+            onCreateTag = { _, _, _, _ -> },
             onGroupClick = {},
             onGroupQuickRemove = {},
         )

@@ -7,6 +7,7 @@ import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.repository.TagInstanceRepository
 import dev.krfu.tagday.data.repository.TagRepository
+import dev.krfu.tagday.ui.theme.TagPalette
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -36,12 +37,17 @@ class DayViewModel @Inject constructor(
         }
     }
 
-    fun createTagAndAdd(name: String, color: Int) {
+    fun createTagAndAdd(name: String, type: TagType, rating: Int? = null, value: String? = null) {
         viewModelScope.launch {
-            // M1's add-tag sheet only ever creates Simple tags — the type picker for
-            // Rated/Valued is M2 scope (UI_UX.md § Add-tag flow).
-            val tagId = tagRepository.createTag(name, color, TagType.SIMPLE)
-            tagInstanceRepository.addInstance(tagId, epochDay)
+            val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
+            val tagId = tagRepository.createTag(name, color, type)
+            tagInstanceRepository.addInstance(tagId, epochDay, rating, value)
+        }
+    }
+
+    fun updateInstance(instance: TagInstance) {
+        viewModelScope.launch {
+            tagInstanceRepository.updateInstance(instance)
         }
     }
 

@@ -5,16 +5,14 @@
     <string name="tags_placeholder_message">Tags view — coming soon</string>
 
     <string name="day_header_today">Today, %1$s</string>
-    <string name="day_empty_message">Nothing tagged yet — tap + to add one</string>
-    <string name="day_add_tag_content_description">Add a tag</string>
+    <string name="day_empty_message">Nothing tagged yet — add one below</string>
 
-    <string name="day_add_sheet_title">Add a tag</string>
-    <string name="day_add_sheet_search_placeholder">Search or create…</string>
-    <string name="day_add_sheet_create_first_placeholder">Name your first tag</string>
-    <string name="day_add_sheet_create_label">Create \"%1$s\"</string>
-    <string name="day_add_sheet_color_label">Color</string>
+    <string name="day_quick_entry_placeholder">Add a tag…</string>
+    <string name="day_quick_entry_submit_content_description">Add tag</string>
+    <string name="day_quick_entry_type_hint">Will create a new %1$s tag</string>
 
     <string name="day_instances_sheet_remove_content_description">Remove</string>
+    <string name="day_instances_sheet_value_placeholder">Value</string>
     <string name="day_capsule_remove_content_description">Remove %1$s</string>
     <string name="day_rating_star_content_description">%1$d stars</string>
 

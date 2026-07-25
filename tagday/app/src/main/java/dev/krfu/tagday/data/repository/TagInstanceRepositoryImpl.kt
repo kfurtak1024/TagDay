@@ -16,14 +16,20 @@ class TagInstanceRepositoryImpl @Inject constructor(
     override fun observeDayGroups(date: Int): Flow<List<TagDisplayGroup>> =
         tagInstanceDao.observeForDay(date).map { it.toDisplayGroups() }
 
-    override suspend fun addInstance(tagId: Long, date: Int) {
+    override suspend fun addInstance(tagId: Long, date: Int, rating: Int?, value: String?) {
         tagInstanceDao.insert(
             TagInstance(
                 tagId = tagId,
                 date = date,
+                rating = rating,
+                value = value,
                 createdAt = System.currentTimeMillis(),
             ),
         )
+    }
+
+    override suspend fun updateInstance(instance: TagInstance) {
+        tagInstanceDao.update(instance)
     }
 
     override suspend fun removeInstance(instance: TagInstance) {
@@ -52,9 +58,15 @@ private fun List<TagInstance>.summarize(name: String, type: TagType): String = w
     TagType.SIMPLE -> if (size > 1) "$name ($size)" else name
 
     TagType.RATED -> {
-        val average = mapNotNull { it.rating }.average()
-        val stars = "★".repeat(average.roundToInt().coerceIn(0, 5))
-        if (size > 1) "$name: $stars ($size)" else "$name: $stars"
+        val rated = mapNotNull { it.rating }
+        // Instances are created unrated and rated later (DATA_MODEL.md § TagInstance) — a
+        // group can be entirely unrated, so it summarizes like Simple until rated (ADR-008).
+        if (rated.isEmpty()) {
+            if (size > 1) "$name ($size)" else name
+        } else {
+            val stars = "★".repeat(rated.average().roundToInt().coerceIn(0, 5))
+            if (size > 1) "$name: $stars ($size)" else "$name: $stars"
+        }
     }
 
     TagType.VALUED -> {

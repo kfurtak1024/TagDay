@@ -1,7 +1,7 @@
 # TagDay — UI / UX
 
-Scoped to what **M0/M1** actually need (see `MILESTONES.md`): the navigation shell and
-the Day screen, Simple tags only. Week/Month/Year zoom, the Tags management screen, and
+Scoped to what **M0/M1/M2** actually need (see `MILESTONES.md`): the navigation shell and
+the Day screen, all three tag types. Week/Month/Year zoom, the Tags management screen, and
 Drive backup UI are specced when their milestone arrives — don't design ahead of them.
 
 ## Navigation shell
@@ -35,66 +35,84 @@ delegates to stateless `DayContent`.
 ┌─────────────────────────────┐
 │  Today, 24 July 2026         │  ← header, static in M1 (no prev/next — that's M4)
 ├─────────────────────────────┤
-│  walk (2)                    │  ← tag group row
-│  reading                     │  ← tag group row (single instance, no count)
-│  meditation                  │
-│                               │
+│  walk (2)                    │  ← Simple group row
+│  reading                     │  ← Simple group row (single instance, no count)
+│  freediving: ★★★★ (2)        │  ← Rated group row (average + count)
+│  movie: [dune, terminator]   │  ← Valued group row (values listed)
 │                               │
 ├─────────────────────────────┤
-│                          [+]  │  ← FAB, opens add-tag bottom sheet
+│  Add a tag…              [+] │  ← quick-entry bar, always visible — see below
 └─────────────────────────────┘
 ```
 
 - Each row is one `TagDisplayGroup` (from `ARCHITECTURE.md`), rendered per the
-  `FEATURES.md` grouping rules — in M1 this only ever produces Simple-style rows
-  (`name` or `name (count)`), since Rated/Valued don't exist until M2.
+  `FEATURES.md` grouping rules — Simple (`name` or `name (count)`), Rated (star average
+  + count), Valued (per-value list with per-value counts). A Rated group with no rated
+  instances yet (freshly added, unrated) displays like a Simple group until an instance
+  is rated — see ADR-008 in `DECISIONS.md`.
 - **Tap a row** → opens a bottom sheet listing the individual instances behind that
-  group, each with its own remove action (per the resolved "manage individual
-  instances" decision in `FEATURES.md`). For a Simple tag this is just a plain list of
-  timestamps with a delete icon each — unglamorous, but keeps M1's interaction model
-  identical to what M2 will reuse for Rated/Valued groups.
+  group, each independently editable and removable (per the resolved "manage individual
+  instances" decision in `FEATURES.md`). Simple instances show a plain timestamp with a
+  delete icon; Rated instances show an editable 1–5 `StarInput` (tap a star to set/change
+  that instance's rating, at any time — no requirement to rate at creation); Valued
+  instances show an editable text field for that instance's value. All three keep the
+  delete icon.
 - **No date navigation in M1.** The header shows today's date but isn't tappable and
   there are no prev/next controls — that's deliberately deferred to M4's swipe
   gestures, per the milestone scope. Don't add a stopgap arrow button; it'd just be
   thrown away.
 
-### Add-tag flow (bottom sheet)
+### Quick-entry tag bar
 
-Triggered by the FAB.
+Replaces the earlier modal "add a tag" bottom sheet (see ADR-009 in `DECISIONS.md`).
+Pinned to the bottom of the Day screen (`Scaffold`'s `bottomBar`), always visible —
+no FAB, no sheet to open.
 
 ```
 ┌─────────────────────────────┐
-│  Add a tag                   │
-│  🔍 Search or create...      │  ← text field, filters the list below as you type
+│  ● reading                   │  ← substring-matching existing tags, tap to add
+│  ● meditation                │     an instance immediately
 ├─────────────────────────────┤
-│  ● reading                   │  ← existing tag, tap to add an instance immediately
-│  ● meditation                │
-│  ● walk                      │
-├─────────────────────────────┤
-│  + Create "yoga"              │  ← appears only when typed text matches no existing tag
+│  [ Add a tag…          ] [+] │  ← always-visible text field + submit button
 └─────────────────────────────┘
 ```
 
-- Typing filters the existing-tag list (same filter behavior `TagsView` will later
-  expose in M3 — this bottom sheet is a lightweight preview of that, not a separate
-  implementation).
-- Tapping an existing tag adds a new instance for today immediately and closes the
-  sheet — no type picker here, ever: type is fixed on the tag itself, not chosen per
-  addition, so there's nothing to configure once a tag already exists.
-- "Create" only appears once the typed name doesn't match an existing tag
-  (case-insensitive). Creating asks for a color from the fixed palette (`ARCHITECTURE.md`
-  § package layout implies a `theme`-adjacent palette source — no custom color picker
-  until M3) and then adds the new tag's first instance to today in one step. In M1 this
-  is the only step, since Simple is the only type that exists yet — M2 adds a type
-  choice (Simple / Rated / Valued) to this **creation** step specifically, not to the
-  add-existing-tag step above.
+- **Suggestions**: as the user types, existing tags whose name contains the typed text
+  (case-insensitive substring, capped to a scrollable height) appear above the field.
+  Tapping one adds a **blank** instance for today (same as before — no type picker,
+  ever, since type is fixed on the tag) and clears the field.
+- **Type inference from syntax**, applied only when the typed name has no existing-tag
+  match (an exact case-insensitive name match always just adds a blank instance to that
+  tag, per the rule above — any `:suffix` typed alongside an exact match is ignored):
+  - `name` alone (no `:`) → ambiguous. The suggestions area is replaced with a row of
+    three filter chips (Simple / Rated / Valued, via `TagType.label()`); tapping one
+    both picks the type and finishes creating the tag in one step (blank first
+    instance — rating/value, for Rated/Valued, stay settable later via the instance-list
+    sheet, same as today).
+  - `name:***` (one or more literal `*` characters, nothing else, after the colon) →
+    unambiguous. Creates a **Rated** tag and seeds the first instance's rating with the
+    star count (clamped to 5 if more than five `*` are typed). No picker shown — a hint
+    line above the field ("Will create a new Rated tag") confirms what's about to
+    happen before the user taps `+`.
+  - `name:text` (any other non-blank text after the colon) → unambiguous. Creates a
+    **Valued** tag and seeds the first instance's value with that text, with the same
+    hint-line confirmation.
+- **Color** is auto-assigned for every new tag by cycling through `TagPalette`'s fixed
+  colors (`allTags.size % colors.size`) — there is no manual color picker in this flow.
+  Recoloring a tag is deferred to M3's Tags view, same as renaming.
+- The type choice (explicit chip tap, or syntax inference) only ever happens at
+  **creation**, never when adding to an already-existing tag, and is never editable
+  afterward (`FEATURES.md` § Tag types) — this rule is unchanged from before.
 
 ### Empty states
 
-- **No tags on today**: centered message + icon ("Nothing tagged yet — tap + to add
-  one"), not just a blank screen.
-- **No tags in the repository yet** (fresh install, add-tag sheet opened): the sheet
-  skips straight to "Create your first tag" — no empty existing-tag list shown above it.
+- **No tags on today**: centered message + icon ("Nothing tagged yet — add one
+  below"), not just a blank screen. The quick-entry bar itself is still visible below
+  it, since it's a persistent part of the screen, not something that needs opening.
+- **No tags in the repository yet** (fresh install): the quick-entry bar behaves the
+  same as always — typing a name with no matches shows the Simple/Rated/Valued chip row
+  (or the Rated/Valued hint line, if the shorthand syntax is used) exactly as it would
+  for any other new tag name.
 
 ## Theming
 
@@ -107,10 +125,6 @@ Triggered by the FAB.
 
 ## Open notes for later docs
 
-- **M2** extends the tag **creation** step of the add-tag flow with a type picker
-  (Simple / Rated / Valued, chosen once and fixed thereafter) and extends the row
-  format per `FEATURES.md` grouping rules (star average, value lists). Adding an
-  *existing* tag never shows a type picker — that never changes.
 - **M3** replaces `TagsPlaceholderScreen` with the real Tags management screen (list,
   filter, rename, recolor, delete) — full spec deferred until then.
 - **M4** replaces the static header with swipeable zoom levels and adds Week/Month/Year

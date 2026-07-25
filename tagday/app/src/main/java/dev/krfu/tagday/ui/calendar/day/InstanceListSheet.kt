@@ -10,6 +10,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.TagInstance
+import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
 import java.time.Instant
 import java.time.ZoneId
@@ -29,6 +31,7 @@ import java.time.format.DateTimeFormatter
 fun InstanceListSheet(
     group: TagDisplayGroup,
     onDismiss: () -> Unit,
+    onUpdateInstance: (TagInstance) -> Unit,
     onRemoveInstance: (TagInstance) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -40,7 +43,19 @@ fun InstanceListSheet(
             Text(text = group.tagName, style = MaterialTheme.typography.titleLarge)
             group.instances.sortedBy { it.createdAt }.forEach { instance ->
                 ListItem(
-                    headlineContent = { Text(text = formatInstant(instance.createdAt, timeFormatter)) },
+                    headlineContent = {
+                        InstanceEditor(
+                            type = group.type,
+                            instance = instance,
+                            timeFormatter = timeFormatter,
+                            onUpdateInstance = onUpdateInstance,
+                        )
+                    },
+                    supportingContent = if (group.type != TagType.SIMPLE) {
+                        { Text(text = formatInstant(instance.createdAt, timeFormatter)) }
+                    } else {
+                        null
+                    },
                     trailingContent = {
                         IconButton(onClick = { onRemoveInstance(instance) }) {
                             Icon(
@@ -54,6 +69,30 @@ fun InstanceListSheet(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun InstanceEditor(
+    type: TagType,
+    instance: TagInstance,
+    timeFormatter: DateTimeFormatter,
+    onUpdateInstance: (TagInstance) -> Unit,
+) {
+    when (type) {
+        TagType.SIMPLE -> Text(text = formatInstant(instance.createdAt, timeFormatter))
+
+        TagType.RATED -> StarInput(
+            rating = instance.rating ?: 0,
+            onRatingSelected = { rating -> onUpdateInstance(instance.copy(rating = rating)) },
+        )
+
+        TagType.VALUED -> OutlinedTextField(
+            value = instance.value ?: "",
+            onValueChange = { value -> onUpdateInstance(instance.copy(value = value)) },
+            singleLine = true,
+            placeholder = { Text(stringResource(R.string.day_instances_sheet_value_placeholder)) },
+        )
     }
 }
 

@@ -40,10 +40,13 @@ A tag can be added to the same day more than once. Each type displays this diffe
   (case-insensitive) but can be changed after creation without breaking existing references.
 - A tag definition holds: id, name, **type**, color, and creation date. Type is fixed at
   creation and immutable — see § Tag types.
-- **Color**: chosen from a fixed palette, with the option to pick a custom color too;
-  stored as a single 32-bit (ARGB) integer regardless of source.
-- Tags are created inline where they're first used (from the day-tagging flow) or from
-  the Tags view — type is chosen once, at creation.
+- **Color**: a single 32-bit (ARGB) integer. Tags created inline from the day-tagging
+  flow get one auto-assigned from the fixed palette (no picker in that flow — see
+  `UI_UX.md` § Quick-entry tag bar); manual choice from the fixed palette, plus a custom
+  color option, belongs to the Tags view (M3).
+- Tags are created inline where they're first used (from the day-tagging flow, with type
+  either inferred from a `name:***`/`name:text` shorthand or chosen explicitly when
+  ambiguous) or from the Tags view — type is chosen once, at creation.
 - **Renaming** a tag (Tags view) updates the display name only — all existing day
   associations (identified by id) are unaffected.
 - **Deleting** a tag cascade-deletes all of its instances across every day, after a

@@ -7,7 +7,9 @@ import kotlinx.coroutines.flow.Flow
 interface TagInstanceRepository {
     fun observeDayGroups(date: Int): Flow<List<TagDisplayGroup>>
 
-    suspend fun addInstance(tagId: Long, date: Int)
+    suspend fun addInstance(tagId: Long, date: Int, rating: Int? = null, value: String? = null)
+
+    suspend fun updateInstance(instance: TagInstance)
 
     suspend fun removeInstance(instance: TagInstance)
 }
