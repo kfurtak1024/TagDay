@@ -40,6 +40,7 @@ fun CalendarScreen(
         onTagPicked = { tagId -> viewModel.selectHeatmapTag(tagId) },
         onStepTime = { direction -> viewModel.stepTime(direction) },
         onStepZoom = { direction -> viewModel.stepZoom(direction) },
+        onZoomLevelPicked = { zoomLevel -> viewModel.setZoom(zoomLevel) },
         modifier = modifier,
     )
 

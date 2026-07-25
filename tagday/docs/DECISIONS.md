@@ -289,3 +289,38 @@ path is where mistakes are cheap and visible the first time through. Automation 
 worth adding once that process itself is trusted and repeatable, starting with signing
 (see `BUILD_RELEASE.md` § Open notes) before ever considering automating the Play Store
 upload itself.
+
+---
+
+## ADR-014: Top-bar zoom-level picker, alongside the swipe gesture
+
+**Decision:** `ZoomLevelPicker` (`ui/calendar/ZoomLevelPicker.kt`) sits in the Calendar
+screen's `TopAppBar` `title` slot (previously empty) — a `TextButton` showing the
+current zoom level's name plus a dropdown chevron, opening a `DropdownMenu` with
+Day/Week/Month/Year (leading checkmark on the current entry). Picking an entry calls a
+new `CalendarViewModel.setZoom(ZoomLevel)`, an absolute setter added alongside the
+existing relative `stepZoom(direction: Int)` that the swipe gesture uses — direct-jump
+selection shouldn't be synthesized as N relative steps. Like the swipe gesture, it only
+changes `zoomLevel`; `focusedDate` is untouched.
+
+**Alternatives considered:** (1) `SingleChoiceSegmentedButtonRow` with all four labels
+visible. (2) A `TabRow`. (3) An icon-only trigger (no visible current-zoom label).
+
+**Why:** Swipe stays the primary way to change zoom (per `FEATURES.md`'s "one
+continuous calendar" framing), but has no visible affordance telling a first-time user
+it exists, nor a way to jump straight from Day to Year without three intermediate
+steps. A corner control fixes both without adding a new gesture zone. Segmented buttons
+and tabs were rejected on width: four text segments ("Day/Week/Month/Year") consume
+nearly the full top-bar width on a phone, crowding the existing trailing Tags
+`IconButton` below the 48dp minimum touch target — and icon-only segments have no
+intuitive per-zoom-level icon to fall back on. Tabs additionally imply peer,
+independently-swipeable destinations, which fights the "one continuous calendar, viewed
+at different granularities" model this app documents elsewhere. An icon-only trigger
+was rejected because the current zoom level is exactly the kind of state worth
+surfacing at a glance, for free, without opening anything.
+
+This is *not* a reversal of ADR-012's Amendment 2, which removed a dedicated
+zoom-*strip* (label + chevrons reserving space in the swipe/content body, competing
+with Day's tag list and Year's stacked grids for the same gesture zone). This control
+lives in the top bar's chrome instead, in a slot that was sitting empty, and is
+additive to the swipe rather than a rebuild of what Amendment 2 removed.

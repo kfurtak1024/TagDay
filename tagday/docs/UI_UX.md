@@ -42,7 +42,7 @@ on `CalendarViewModel`'s `zoomLevel` state.
 
 ```
 ┌─────────────────────────────┐
-│                         [🏷]  │  ← top bar, always shown, opens Tags
+│  Day ▾                  [🏷]  │  ← top bar: zoom picker (left), Tags icon (right)
 ├─────────────────────────────┤
 │                               │
 │      (zoom-level content)    │  ← swipe up/down = zoom, left/right = move through time
@@ -52,15 +52,27 @@ on `CalendarViewModel`'s `zoomLevel` state.
 └─────────────────────────────┘
 ```
 
-- **Top bar**: a minimal `TopAppBar` with no title text, holding a single trailing
-  `IconButton` (tag/label-shaped icon, `R.drawable.ic_label` — a custom vector, since
-  `material-icons-core`'s bundled set has no tag icon and pulling in
-  `material-icons-extended` for one icon isn't worth the APK-size tradeoff while release
-  builds have minification disabled) that navigates to the Tags screen — shown at every
-  zoom level, the only way into Tags, per § Navigation shell.
+- **Top bar**: a `TopAppBar` whose `title` slot holds `ZoomLevelPicker` (a `TextButton`
+  showing the current zoom level's name, e.g. "Day", plus a small dropdown chevron) and
+  whose trailing `actions` slot holds a single `IconButton` (tag/label-shaped icon,
+  `R.drawable.ic_label` — a custom vector, since `material-icons-core`'s bundled set has
+  no tag icon and pulling in `material-icons-extended` for one icon isn't worth the
+  APK-size tradeoff while release builds have minification disabled) that navigates to
+  the Tags screen — shown at every zoom level, the only way into Tags, per § Navigation
+  shell.
+- **Zoom picker**: `ZoomLevelPicker` (`ui/calendar/ZoomLevelPicker.kt`) — tapping it opens
+  a `DropdownMenu` listing Day/Week/Month/Year, current entry marked with a leading
+  checkmark; picking one calls `CalendarViewModel.setZoom` directly (an absolute setter,
+  distinct from `stepZoom`'s relative ±1 used by the swipe gesture below) and only
+  changes `zoomLevel` — `focusedDate` is left untouched, same contract as the swipe. This
+  is a discoverability/direct-jump affordance *alongside* the swipe gesture, not a
+  replacement for it — see ADR-014 in `DECISIONS.md`, and its relationship to the
+  strip that ADR-012 tried and removed.
 - **Quick-entry bar**: shown only at Day zoom — adding tags is a Day-only capability
   (`FEATURES.md`); Week/Month/Year are read-only overviews/navigation.
-- **Gesture model**: no dedicated control for zoom — swipe anywhere in the content body.
+- **Gesture model**: no dedicated control for zoom *in the content body* — the zoom
+  picker above lives in the top bar's chrome, not the swipe area, and reaching a zoom
+  level by swiping never requires it. Swipe anywhere in the content body.
   Horizontal is a plain drag detector: accumulates delta over the gesture and, on
   release, steps the focused date by one unit of the current zoom level, forward or
   back (nothing in any zoom level scrolls horizontally, so no coordination is needed).

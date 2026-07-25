@@ -29,6 +29,11 @@
     <string name="day_empty_message">Nothing tagged yet — add one below</string>
     <string name="day_edit_tags_content_description">Edit tags</string>
 
+    <string name="calendar_zoom_level_day">Day</string>
+    <string name="calendar_zoom_level_week">Week</string>
+    <string name="calendar_zoom_level_month">Month</string>
+    <string name="calendar_zoom_level_year">Year</string>
+
     <string name="calendar_tag_picker_label">Tag</string>
     <string name="calendar_tag_picker_placeholder">Pick a tag</string>
     <string name="calendar_heatmap_pick_tag_message">Pick a tag above to see its heatmap</string>

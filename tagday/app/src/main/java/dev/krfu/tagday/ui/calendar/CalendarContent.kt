@@ -53,6 +53,7 @@ fun CalendarContent(
     onTagPicked: (Long) -> Unit,
     onStepTime: (Int) -> Unit,
     onStepZoom: (Int) -> Unit,
+    onZoomLevelPicked: (ZoomLevel) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Vertical (zoom) is a real `scrollable`, not a raw pointerInput drag, so it can
@@ -87,7 +88,12 @@ fun CalendarContent(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = {},
+                title = {
+                    ZoomLevelPicker(
+                        zoomLevel = uiState.zoomLevel,
+                        onZoomLevelPicked = onZoomLevelPicked,
+                    )
+                },
                 actions = {
                     IconButton(onClick = onNavigateToTags) {
                         Icon(

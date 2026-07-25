@@ -96,6 +96,10 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun setZoom(zoomLevel: ZoomLevel) {
+        query.update { it.copy(zoomLevel = zoomLevel) }
+    }
+
     fun jumpToDay(date: LocalDate) {
         query.update { it.copy(zoomLevel = ZoomLevel.DAY, focusedDate = date) }
     }
