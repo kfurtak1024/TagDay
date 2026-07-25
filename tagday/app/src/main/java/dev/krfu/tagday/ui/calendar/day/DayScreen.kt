@@ -9,16 +9,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.krfu.tagday.data.local.entity.TagInstanceType
 
 @Composable
 fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var isAddSheetOpen by remember { mutableStateOf(false) }
-    var selectedGroupKey by remember { mutableStateOf<Pair<Long, TagInstanceType>?>(null) }
-    val selectedGroup = selectedGroupKey?.let { (tagId, type) ->
-        uiState.groups.find { it.tagId == tagId && it.type == type }
+    var selectedGroupKey by remember { mutableStateOf<Long?>(null) }
+    val selectedGroup = selectedGroupKey?.let { tagId ->
+        uiState.groups.find { it.tagId == tagId }
     }
     LaunchedEffect(uiState.groups) {
         // The group's last instance may have just been removed — nothing left to show.
@@ -30,13 +29,13 @@ fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewM
     DayContent(
         uiState = uiState,
         onAddTagClick = { isAddSheetOpen = true },
-        onGroupClick = { group -> selectedGroupKey = group.tagId to group.type },
+        onGroupClick = { group -> selectedGroupKey = group.tagId },
         onGroupQuickRemove = { group ->
             // A single instance can be removed directly; anything more still needs picking.
             if (group.instances.size == 1) {
                 viewModel.removeInstance(group.instances.single())
             } else {
-                selectedGroupKey = group.tagId to group.type
+                selectedGroupKey = group.tagId
             }
         },
         modifier = modifier,

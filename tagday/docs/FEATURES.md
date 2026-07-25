@@ -3,56 +3,47 @@
 ## Concept
 
 TagDay is a calendar where days are annotated with **tags** instead of free-text notes.
-A day can carry any number of tags, including the same tag more than once — and even the
-same tag used in different ways on different occasions. Tags themselves live in a shared
-**tag repository**, identified by a stable internal id (with a unique, renamable display
-name), and are reused across many days.
+A day can carry any number of tags, including the same tag more than once. Tags themselves
+live in a shared **tag repository**, identified by a stable internal id (with a unique,
+renamable display name), and are reused across many days.
 
 ## Tag types
 
-A tag's **type is not part of the tag definition** — it's a property of each individual
-*instance* (each time a tag is added to a day, that specific addition has a type):
+Every tag has exactly one type, fixed at creation and **immutable afterward** — to use a
+tag concept differently, create a new tag with a different name rather than changing an
+existing tag's type. This keeps historical data unambiguous: a Rated tag's instances are
+always ratings, a Valued tag's instances are always values, with no risk of a type change
+orphaning past data.
 
 | Type | Shape | Example |
 |---|---|---|
 | **Simple** | name only (presence/absence) | `reading`, `field-trip`, `fast-food`, `meditation` |
-| **Rated** | name + a 1–5 star rating | `work: ★★★`, `sleep: ★`, `freediving: ★★★★` |
-| **Valued** | name + a free-text value | `movie: dune`, `reading: blade-runner`, `playing-game: death-stranding-2` |
+| **Rated** | name + a 1–5 star rating, set per day | `work: ★★★`, `sleep: ★`, `freediving: ★★★★` |
+| **Valued** | name + a free-text value, set per day | `movie: dune`, `reading: blade-runner`, `playing-game: death-stranding-2` |
 
-Because type lives on the instance rather than the tag, the **same tag name can be used
-with different types at different times** — even on the same day. For example, the tag
-`movie` could have a Simple instance (just noting a movie was watched), a Rated instance
-(`movie: ★★★`, rating it), and a Valued instance (`movie: dune`, naming it) all coexisting.
-Each addition of a tag to a day requires picking which type applies *for that instance*.
-A Rated instance's star value can be added or changed at any time — there's no requirement
-to set it the moment the instance is created.
+A Rated tag's star value can be added or changed at any time — there's no requirement to
+set it the moment an instance is created.
 
-### Multiple instances & type grouping
+### Multiple instances per day
 
-A tag can be added to the same day more than once, in the same or different types. On
-the Day view, instances of the same tag name are **grouped by type** for display, and
-each group is aggregated using the same rules as before:
+A tag can be added to the same day more than once. Each type displays this differently:
 
-- **Simple group**: `name (count)` — count shown only when >1, e.g. `movie (2)`.
-- **Rated group**: `name: ★★★ (count)` — average rating across the group, count shown
-  only when >1, e.g. `movie: ★ (3)`.
-- **Valued group**: `name: [value (count), value, ...]` — every value in the group listed,
-  with a per-value count when that specific value repeats, e.g. `movie: [dune (2), terminator]`.
-
-A day where `movie` was used all three ways would show all three groups together:
-`movie (2), movie: ★ (3), movie: [dune (2), terminator]`.
+| Type | Two instances on the same day | Display |
+|---|---|---|
+| **Simple** | added twice | `walk (2)` — just a count |
+| **Rated** | `★★★★` and `★★` | `freediving: ★★★ (2)` — average rating, with count |
+| **Valued** | `dune` and `terminator` | `movie: [dune, terminator]` — all values listed, with a per-value count when a specific value repeats |
 
 ## Tag repository
 
 - Tags are identified internally by a stable **id**; the display **name** must be unique
   (case-insensitive) but can be changed after creation without breaking existing references.
-- A tag definition holds: id, name, color, and creation date — **no type**. Type is chosen
-  per instance when the tag is added to a day (see above), not stored on the tag itself.
+- A tag definition holds: id, name, **type**, color, and creation date. Type is fixed at
+  creation and immutable — see § Tag types.
 - **Color**: chosen from a fixed palette, with the option to pick a custom color too;
   stored as a single 32-bit (ARGB) integer regardless of source.
 - Tags are created inline where they're first used (from the day-tagging flow) or from
-  the Tags view — creating a tag itself doesn't require picking a type; that choice happens
-  per addition.
+  the Tags view — type is chosen once, at creation.
 - **Renaming** a tag (Tags view) updates the display name only — all existing day
   associations (identified by id) are unaffected.
 - **Deleting** a tag cascade-deletes all of its instances across every day, after a
@@ -74,10 +65,10 @@ The core, default view of the app.
   - **Swipe left/right** — move backward/forward in time, one unit of the current zoom
     level at a time (previous/next day, week, month, or year).
 - **Per-zoom-level content**:
-  - **Day**: full detail — tags assigned to that day, shown grouped by tag name and then
-    by type (see grouping rules above); add a tag (pick existing from repository or create
-    new — repeatable, even for a tag already on that day, and with a type chosen per
-    addition), remove an instance, edit an instance's rating/value.
+  - **Day**: full detail — tags assigned to that day, shown grouped by tag name (see
+    grouping rules above); add a tag (pick existing from repository or create new —
+    repeatable, even for a tag already on that day), remove an instance, edit an
+    instance's rating/value.
   - **Week**: zoomed-out overview using multi-tag chips/dots per day — enough room at
     this density to show several tags per day at a glance.
   - **Month / Year**: switch to a **single-tag heatmap** — a tag picker/dropdown at the
@@ -123,15 +114,10 @@ Management screen for the tag repository.
 - **Rated instances**: rating can be set or changed at any time, not just at creation.
 - **Month/Year zoom**: single-tag heatmap, tag selected via a picker/dropdown at the top
   of the view; Week zoom keeps the multi-tag chip/dot style.
-- **Instance type mutability**: an instance's type can be changed after the fact (e.g.
-  Simple → Rated) directly, rather than requiring delete-and-recreate.
-- **Managing individual instances**: tapping a type group (e.g. the Valued group
-  `movie: [dune (2), terminator]`) shows an editable list of the individual instances —
+- **Instance type mutability**: not applicable — type lives on the tag, fixed at creation
+  and immutable. To use a tag concept differently, create a new tag with a different name.
+- **Managing individual instances**: tapping a tag's group (e.g. the Valued group
+  `movie: [dune, terminator]`) shows an editable list of the individual instances —
   each instance can be edited or removed independently. Removing the last instance in a
   group simply removes that instance, and the group disappears from the day's display
   once empty (no separate "clear group" action needed).
-- **Quick-delete on Day view**: each group is also rendered with a small "x" affordance
-  (see `UI_UX.md` § Day screen) as a shortcut around opening the instance list — for a
-  single-instance group it removes that instance immediately; for a multi-instance
-  group it falls back to the same instance-list sheet, since a specific instance still
-  needs picking.

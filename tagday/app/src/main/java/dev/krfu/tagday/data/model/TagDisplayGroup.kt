@@ -1,13 +1,13 @@
 package dev.krfu.tagday.data.model
 
 import dev.krfu.tagday.data.local.entity.TagInstance
-import dev.krfu.tagday.data.local.entity.TagInstanceType
+import dev.krfu.tagday.data.local.entity.TagType
 
 data class TagDisplayGroup(
     val tagId: Long,
     val tagName: String,
     val color: Int,
-    val type: TagInstanceType,
+    val type: TagType,
     val instances: List<TagInstance>,
     val summary: String,
 )

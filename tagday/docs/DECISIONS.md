@@ -8,6 +8,8 @@ doc — if the reasoning needs more than a few paragraphs, it belongs in the rel
 
 ## ADR-001: Tag type lives on the instance, not the tag
 
+> **Superseded by ADR-007.** Kept here for history — do not follow this decision.
+
 **Decision:** `Tag` has no `type` column. Type (Simple/Rated/Valued) is chosen per
 `TagInstance`, so the same tag name can be used as all three types simultaneously.
 
@@ -87,3 +89,27 @@ the repository boundary via a Room `TypeConverter`.
 **Why:** Epoch day is a plain integer — cheap to index and compare, and `BETWEEN` range
 queries (used by every zoom level) are simple integer comparisons rather than string
 comparisons that happen to sort correctly. See `DATA_MODEL.md` § `TagInstance`.
+
+---
+
+## ADR-007: Tag type moved back onto `Tag`; supersedes ADR-001
+
+**Decision:** `Tag` gets a `type` column (`SIMPLE` / `RATED` / `VALUED`), fixed at
+creation and immutable. `TagInstance` no longer has a `type` column. A tag name can no
+longer be reused across multiple types — one tag, one type, permanently.
+
+**Alternative considered:** Keep type on the instance (ADR-001's approach), allowing
+`movie`, `movie: ★★★`, and `movie: dune` to coexist as the same tag used three ways.
+
+**Why:** This reverses ADR-001 by direct request — the earlier "same name, mixed types"
+flexibility wasn't wanted after all. Type-on-tag is also the simpler model: no per-day
+type-grouping logic, no question of what a type change does to historical instances,
+and each `Tag` unambiguously has one meaning. The tradeoff: reusing a tag concept
+differently now requires a new tag with a different name (e.g. `movie` and
+`movie-rating` as separate tags) rather than layering types under one name.
+
+**Migration note:** This landed after M1 was already implemented against ADR-001's
+schema. Since there was no real user data at stake yet, the schema bump used
+`fallbackToDestructiveMigration()` rather than a written `Migration` — see
+`DATA_MODEL.md` § Open notes. Once the app has real installs, schema changes of this
+kind need an actual migration path instead.

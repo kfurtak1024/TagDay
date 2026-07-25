@@ -25,7 +25,6 @@ data class TagInstance(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val tagId: Long,
     val date: Int,
-    val type: TagInstanceType,
     val rating: Int? = null,
     val value: String? = null,
     val createdAt: Long,

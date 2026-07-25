@@ -28,14 +28,14 @@ screens you haven't reached yet.
 
 ## M2 — Rated & Valued types, full grouping
 
-- Type picker when adding a tag instance (Simple / Rated / Valued).
+- Type picker in the tag **creation** flow (Simple / Rated / Valued), chosen once and
+  fixed thereafter — adding an existing tag never shows this picker.
 - Rated: 1–5 star input, editable at any time, average+count aggregation.
 - Valued: free-text input, per-value count aggregation, values listed.
-- Same tag name usable across all three types on the same day (per resolved decision).
-- Instance type mutability: change an existing instance's type in place.
-- Individual instance editing/removal within a type group (tap the group, get a list).
-- **Done when**: the full `movie (2), movie: ★ (3), movie: [dune (2), terminator]` example
-  from `FEATURES.md` is reproducible and each instance is independently editable.
+- Individual instance editing/removal within a tag's group (tap the group, get a list).
+- **Done when**: a Rated tag like `freediving: ★★★ (2)` and a Valued tag like
+  `movie: [dune, terminator]` both work end-to-end, and each instance within a group is
+  independently editable.
 
 ## M3 — Tags view
 

@@ -7,7 +7,7 @@ import dev.krfu.tagday.data.local.entity.TagInstance
 
 @Database(
     entities = [Tag::class, TagInstance::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class TagDayDatabase : RoomDatabase() {

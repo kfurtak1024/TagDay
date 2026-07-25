@@ -35,7 +35,7 @@ data class TagDisplayGroup(
     val tagId: Long,
     val tagName: String,
     val color: Int,
-    val type: TagInstanceType,
+    val type: TagType,
     val instances: List<TagInstance>, // the raw instances backing this group
     val summary: String               // pre-formatted: "movie (2)", "movie: ★ (3)", etc.
 )
@@ -106,8 +106,9 @@ Standard MVVM + unidirectional data flow, kept intentionally simple:
   ViewModels hold no independent state beyond UI concerns (loading flags, selected
   tag for heatmap, etc.).
 - The UI sends intent back via plain lambda callbacks passed into Composables
-  (`onTagAdded: (tagId, type) -> Unit`), not a formal event-bus/sealed-class dispatch
-  system — that's more ceremony than a single-developer app like this needs.
+  (`onTagAdded: (tagId) -> Unit`, `onTagCreated: (name, type, color) -> Unit`), not a
+  formal event-bus/sealed-class dispatch system — that's more ceremony than a
+  single-developer app like this needs.
 
 ## Dependency injection (Hilt)
 

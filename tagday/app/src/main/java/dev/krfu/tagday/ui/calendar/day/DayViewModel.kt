@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.krfu.tagday.data.local.entity.TagInstance
-import dev.krfu.tagday.data.local.entity.TagInstanceType
+import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.repository.TagInstanceRepository
 import dev.krfu.tagday.data.repository.TagRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,14 +32,16 @@ class DayViewModel @Inject constructor(
 
     fun addExistingTag(tagId: Long) {
         viewModelScope.launch {
-            tagInstanceRepository.addInstance(tagId, epochDay, TagInstanceType.SIMPLE)
+            tagInstanceRepository.addInstance(tagId, epochDay)
         }
     }
 
     fun createTagAndAdd(name: String, color: Int) {
         viewModelScope.launch {
-            val tagId = tagRepository.createTag(name, color)
-            tagInstanceRepository.addInstance(tagId, epochDay, TagInstanceType.SIMPLE)
+            // M1's add-tag sheet only ever creates Simple tags — the type picker for
+            // Rated/Valued is M2 scope (UI_UX.md § Add-tag flow).
+            val tagId = tagRepository.createTag(name, color, TagType.SIMPLE)
+            tagInstanceRepository.addInstance(tagId, epochDay)
         }
     }
 

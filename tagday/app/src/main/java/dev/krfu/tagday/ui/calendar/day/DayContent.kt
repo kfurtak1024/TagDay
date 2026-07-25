@@ -33,7 +33,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.TagInstance
-import dev.krfu.tagday.data.local.entity.TagInstanceType
+import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
 import dev.krfu.tagday.ui.theme.TagDayTheme
 import java.time.LocalDate
@@ -156,10 +156,10 @@ private fun DayContentPreview() {
                         tagId = 1,
                         tagName = "walk",
                         color = 0xFF81C784.toInt(),
-                        type = TagInstanceType.SIMPLE,
+                        type = TagType.SIMPLE,
                         instances = listOf(
-                            TagInstance(id = 1, tagId = 1, date = 0, type = TagInstanceType.SIMPLE, createdAt = 0),
-                            TagInstance(id = 2, tagId = 1, date = 0, type = TagInstanceType.SIMPLE, createdAt = 1),
+                            TagInstance(id = 1, tagId = 1, date = 0, createdAt = 0),
+                            TagInstance(id = 2, tagId = 1, date = 0, createdAt = 1),
                         ),
                         summary = "walk (2)",
                     ),
@@ -167,9 +167,9 @@ private fun DayContentPreview() {
                         tagId = 2,
                         tagName = "reading",
                         color = 0xFF4FC3F7.toInt(),
-                        type = TagInstanceType.SIMPLE,
+                        type = TagType.SIMPLE,
                         instances = listOf(
-                            TagInstance(id = 3, tagId = 2, date = 0, type = TagInstanceType.SIMPLE, createdAt = 0),
+                            TagInstance(id = 3, tagId = 2, date = 0, createdAt = 0),
                         ),
                         summary = "reading",
                     ),

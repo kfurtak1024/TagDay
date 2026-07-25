@@ -18,7 +18,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideTagDayDatabase(@ApplicationContext context: Context): TagDayDatabase =
-        Room.databaseBuilder(context, TagDayDatabase::class.java, "tagday.db").build()
+        Room.databaseBuilder(context, TagDayDatabase::class.java, "tagday.db")
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
     @Provides
     fun provideTagDao(database: TagDayDatabase): TagDao = database.tagDao()

@@ -35,8 +35,9 @@ delegates to stateless `DayContent`.
 ┌─────────────────────────────┐
 │  Today, 24 July 2026         │  ← header, static in M1 (no prev/next — that's M4)
 ├─────────────────────────────┤
-│  (walk (2) ⓧ) (reading ⓧ)    │  ← capsules, wrap in a flow row
-│  (meditation ⓧ)              │
+│  walk (2)                    │  ← tag group row
+│  reading                     │  ← tag group row (single instance, no count)
+│  meditation                  │
 │                               │
 │                               │
 ├─────────────────────────────┤
@@ -44,25 +45,14 @@ delegates to stateless `DayContent`.
 └─────────────────────────────┘
 ```
 
-- Each capsule is one `TagDisplayGroup` (from `ARCHITECTURE.md`), rendered per the
-  `FEATURES.md` grouping rules — in M1 this only ever produces Simple-style capsules
-  (`name` or `name (count)`), since Rated/Valued don't exist until M2. Capsules wrap in
-  a flow row rather than stacking one-per-line — this is Day's own visual language for
-  M1; whether Week's M4 chip overview reuses it is an open decision, not made yet.
-- Each capsule carries the tag's color as its background/accent and a small trailing
-  "x" affordance, distinct from tapping the capsule body.
-- **Tap the capsule body** → opens a bottom sheet listing the individual instances
-  behind that group, each with its own remove action (per the resolved "manage
-  individual instances" decision in `FEATURES.md`). For a Simple tag this is just a
-  plain list of timestamps with a delete icon each — unglamorous, but keeps M1's
-  interaction model identical to what M2 will reuse for Rated/Valued groups.
-- **Tap the trailing "x"** → a quick-delete shortcut, behavior depends on the group's
-  instance count:
-  - **Exactly one instance**: removed immediately, no sheet — the common case doesn't
-    need a picker.
-  - **More than one instance**: opens the same instance-list sheet as tapping the
-    body, since the user still needs to pick which one — the "x" isn't a separate
-    code path here, just the same affordance reached from either tap target.
+- Each row is one `TagDisplayGroup` (from `ARCHITECTURE.md`), rendered per the
+  `FEATURES.md` grouping rules — in M1 this only ever produces Simple-style rows
+  (`name` or `name (count)`), since Rated/Valued don't exist until M2.
+- **Tap a row** → opens a bottom sheet listing the individual instances behind that
+  group, each with its own remove action (per the resolved "manage individual
+  instances" decision in `FEATURES.md`). For a Simple tag this is just a plain list of
+  timestamps with a delete icon each — unglamorous, but keeps M1's interaction model
+  identical to what M2 will reuse for Rated/Valued groups.
 - **No date navigation in M1.** The header shows today's date but isn't tappable and
   there are no prev/next controls — that's deliberately deferred to M4's swipe
   gestures, per the milestone scope. Don't add a stopgap arrow button; it'd just be
@@ -88,13 +78,16 @@ Triggered by the FAB.
 - Typing filters the existing-tag list (same filter behavior `TagsView` will later
   expose in M3 — this bottom sheet is a lightweight preview of that, not a separate
   implementation).
-- Tapping an existing tag adds a new Simple instance for today immediately and closes
-  the sheet (M1 has only one type, so there's nothing further to configure — M2 adds a
-  type-picker step here).
+- Tapping an existing tag adds a new instance for today immediately and closes the
+  sheet — no type picker here, ever: type is fixed on the tag itself, not chosen per
+  addition, so there's nothing to configure once a tag already exists.
 - "Create" only appears once the typed name doesn't match an existing tag
   (case-insensitive). Creating asks for a color from the fixed palette (`ARCHITECTURE.md`
   § package layout implies a `theme`-adjacent palette source — no custom color picker
-  until M3) and then adds the new tag's first instance to today in one step.
+  until M3) and then adds the new tag's first instance to today in one step. In M1 this
+  is the only step, since Simple is the only type that exists yet — M2 adds a type
+  choice (Simple / Rated / Valued) to this **creation** step specifically, not to the
+  add-existing-tag step above.
 
 ### Empty states
 
@@ -114,13 +107,13 @@ Triggered by the FAB.
 
 ## Open notes for later docs
 
-- **M2** extends the add-tag flow with a type picker (Simple / Rated / Valued) and
-  extends the row format per `FEATURES.md` grouping rules (star average, value lists).
+- **M2** extends the tag **creation** step of the add-tag flow with a type picker
+  (Simple / Rated / Valued, chosen once and fixed thereafter) and extends the row
+  format per `FEATURES.md` grouping rules (star average, value lists). Adding an
+  *existing* tag never shows a type picker — that never changes.
 - **M3** replaces `TagsPlaceholderScreen` with the real Tags management screen (list,
   filter, rename, recolor, delete) — full spec deferred until then.
 - **M4** replaces the static header with swipeable zoom levels and adds Week/Month/Year
-  layouts (chip overview, single-tag heatmap) — full spec deferred until then, including
-  whether Week's multi-tag chips reuse Day's capsule-with-"x" visual language above or
-  introduce their own (Week has no per-instance delete affordance to design around yet).
+  layouts (chip overview, single-tag heatmap) — full spec deferred until then.
 - **M5** adds a Drive backup/restore entry point — likely a simple settings-style
   screen reachable from somewhere in the nav shell (exact placement TBD when reached).

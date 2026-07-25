@@ -30,9 +30,11 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 - **Single Gradle module until there's a real reason not to be.** Don't modularize
   preemptively. Revisit only if build times become painful or a second contributor needs
   isolated ownership of a module.
-- **Tag type lives on the instance, not the tag.** The same tag name can be used as
-  Simple, Rated, and Valued simultaneously — don't reintroduce a `type` field on the
-  `Tag` entity itself. See `docs/FEATURES.md` § Tag types.
+- **Tag type lives on the tag, not the instance.** Every tag has exactly one type
+  (Simple/Rated/Valued), fixed at creation and immutable — don't reintroduce a `type`
+  column on `TagInstance`, and don't build any "change this tag's type" UI or DAO
+  method. To use a tag concept differently, the user creates a new tag. See
+  `docs/FEATURES.md` § Tag types.
 
 ## Docs map
 
@@ -50,6 +52,6 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 
 ## Current status
 
-Documentation phase. `FEATURES.md` is complete. Everything else is not yet written.
-
-**Not started yet.**
+Documentation phase complete for M0/M1 scope. M1 (Day view, Simple tags) is implemented.
+Currently applying the ADR-007 schema change (type moved from `TagInstance` to `Tag`) —
+see `docs/DECISIONS.md`.

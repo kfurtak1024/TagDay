@@ -16,4 +16,9 @@
 
     <string name="day_instances_sheet_remove_content_description">Remove</string>
     <string name="day_capsule_remove_content_description">Remove %1$s</string>
+    <string name="day_rating_star_content_description">%1$d stars</string>
+
+    <string name="tag_type_simple">Simple</string>
+    <string name="tag_type_rated">Rated</string>
+    <string name="tag_type_valued">Valued</string>
 </resources>

@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
 data class Tag(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     @ColumnInfo(name = "name", collate = ColumnInfo.NOCASE) val name: String,
+    val type: TagType,
     val color: Int,
     val createdAt: Long,
 )
