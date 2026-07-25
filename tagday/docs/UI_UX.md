@@ -1,29 +1,26 @@
 # TagDay — UI / UX
 
-Scoped to what **M0-M3** actually need (see `MILESTONES.md`): the navigation shell, the
-Day screen (all three tag types), and the Tags management screen. Week/Month/Year zoom
-and Drive backup UI are specced when their milestone arrives — don't design ahead of them.
+Scoped to what **M0-M4** actually need (see `MILESTONES.md`): the navigation shell, the
+Calendar screen (all four zoom levels, all three tag types), and the Tags management
+screen. Drive backup UI is specced when M5 arrives — don't design ahead of it.
 
 ## Navigation shell
 
-No bottom navigation bar — Calendar (`DayScreen`) is the sole start destination and the
-app's primary surface. Tags is reached via a small icon in the top-right corner of the
-Day screen (see § Day screen below) and returned from via its own back arrow, i.e. it's
-a screen you navigate *into* and back out of, not a peer tab.
+No bottom navigation bar — Calendar (`CalendarScreen`) is the sole start destination and
+the app's primary surface. Tags is reached via a small icon in the top-right corner of
+the Calendar screen (shared across all four zoom levels, see § Calendar screen below)
+and returned from via its own back arrow, i.e. it's a screen you navigate *into* and
+back out of, not a peer tab.
 
 | Destination | Route | Content |
 |---|---|---|
-| Calendar | `calendar` | `DayScreen` — the only zoom level that exists yet, start destination |
+| Calendar | `calendar` | `CalendarScreen` — Day/Week/Month/Year, one continuous calendar, start destination |
 | Tags | `tags` | `TagsScreen` — list/filter/rename/recolor/delete, pushed on top of Calendar |
-
-There's no nested zoom-level navigation within Calendar yet — that's introduced in M4
-alongside the swipe gestures; for now `calendar` routes straight to `DayScreen` showing
-today.
 
 ```kotlin
 NavHost(navController, startDestination = "calendar") {
     composable("calendar") {
-        DayScreen(onNavigateToTags = { navController.navigate("tags") })
+        CalendarScreen(onNavigateToTags = { navController.navigate("tags") })
     }
     composable("tags") {
         TagsScreen(onNavigateBack = { navController.popBackStack() })
@@ -31,16 +28,62 @@ NavHost(navController, startDestination = "calendar") {
 }
 ```
 
-## Day screen
+## Calendar screen
 
-Per `CONVENTIONS.md` § Compose conventions: `DayScreen` (collects `DayViewModel` state)
-delegates to stateless `DayContent`.
+Per `CONVENTIONS.md` § Compose conventions: `CalendarScreen` (collects `CalendarViewModel`
+state) delegates to stateless `CalendarContent`. One screen, four zoom levels (Day/Week/
+Month/Year) — per `FEATURES.md`, "one continuous calendar, viewed at different
+granularities, not four separate screens." `CalendarContent` owns the shared chrome
+(top bar, swipe-handle strip, gesture detection) and dispatches to each zoom level's
+stateless `XyzContent` (`DayContent`, `WeekContent`, `MonthContent`, `YearContent`) based
+on `CalendarViewModel`'s `zoomLevel` state.
 
-### Layout
+### Shared chrome
 
 ```
 ┌─────────────────────────────┐
-│                         [🏷]  │  ← top-right icon, opens Tags (see § Navigation shell)
+│                         [🏷]  │  ← top bar, always shown, opens Tags
+├─────────────────────────────┤
+│                               │
+│      (zoom-level content)    │  ← swipe up/down = zoom, left/right = move through time
+│                               │
+├─────────────────────────────┤
+│  Add a tag…              [+] │  ← quick-entry bar, Day zoom only
+└─────────────────────────────┘
+```
+
+- **Top bar**: a minimal `TopAppBar` with no title text, holding a single trailing
+  `IconButton` (tag/label-shaped icon, `R.drawable.ic_label` — a custom vector, since
+  `material-icons-core`'s bundled set has no tag icon and pulling in
+  `material-icons-extended` for one icon isn't worth the APK-size tradeoff while release
+  builds have minification disabled) that navigates to the Tags screen — shown at every
+  zoom level, the only way into Tags, per § Navigation shell.
+- **Quick-entry bar**: shown only at Day zoom — adding tags is a Day-only capability
+  (`FEATURES.md`); Week/Month/Year are read-only overviews/navigation.
+- **Gesture model**: no dedicated control for zoom — swipe anywhere in the content body.
+  Horizontal is a plain drag detector: accumulates delta over the gesture and, on
+  release, steps the focused date by one unit of the current zoom level, forward or
+  back (nothing in any zoom level scrolls horizontally, so no coordination is needed).
+  Vertical steps the zoom level the same way conceptually (swipe up zooms out,
+  Day→Week→Month→Year; swipe down zooms in; clamped at both ends, no wraparound) but is
+  implemented as a real `Modifier.scrollable`, not a raw drag detector — this lets it
+  properly negotiate with Day's tag list and Year's stacked month grids, which are
+  themselves `scrollable` (via `verticalScroll`). A nested `scrollable` only ever grabs
+  the delta its descendant didn't consume (Compose dispatches to the *innermost*
+  scrollable first), so the tag list/month grids still scroll normally, and only once
+  they're out of room — or on Week/Month, which have nothing scrollable at all — does a
+  vertical swipe change the zoom level. Same activation zone as horizontal, same screen
+  area, on every zoom level. Deliberately not `Pager`-based — see ADR-012 in
+  `DECISIONS.md`, including its amendments for the history of this control (a dedicated
+  tappable strip was tried and removed; the original vertical-only-off-to-the-side
+  gesture zone was replaced by this nested-scroll-aware whole-body approach).
+- **Tap a day** at Week/Month/Year zoom jumps straight to that day at Day zoom
+  (`CalendarViewModel.jumpToDay`), per `FEATURES.md`.
+
+### Day zoom
+
+```
+┌─────────────────────────────┐
 │░░░░░░░░ JULY 2026 ░░░░░░░░░░│  ← header card: colored month/year band
 │                              │
 │             25               │  ← huge day-of-month number
@@ -50,9 +93,6 @@ delegates to stateless `DayContent`.
 │  reading                     │  ← Simple group row (single instance, no count)
 │  freediving: ★★★★ (2)        │  ← Rated group row (average + count)
 │  movie: [dune, terminator]   │  ← Valued group row (values listed)
-│                               │
-├─────────────────────────────┤
-│  Add a tag…              [+] │  ← quick-entry bar, always visible — see below
 └─────────────────────────────┘
 ```
 
@@ -77,22 +117,34 @@ delegates to stateless `DayContent`.
   in `displayLarge`/bold (the dominant element) and the weekday name in `titleLarge`
   below it. The four fields are exposed to screen readers as one merged node ("Saturday,
   25 July 2026") rather than four separate fragments.
-- **Top bar**: a minimal `TopAppBar` with no title text, holding a single trailing
-  `IconButton` (tag/label-shaped icon, `R.drawable.ic_label` — a custom vector, since
-  `material-icons-core`'s bundled set has no tag icon and pulling in
-  `material-icons-extended` for one icon isn't worth the APK-size tradeoff while release
-  builds have minification disabled, "Edit tags") that navigates to the Tags screen —
-  this is the only way into Tags, per § Navigation shell.
-- **No date navigation in M1.** The header shows today's date but isn't tappable and
-  there are no prev/next controls — that's deliberately deferred to M4's swipe
-  gestures, per the milestone scope. Don't add a stopgap arrow button; it'd just be
-  thrown away.
+
+### Week zoom
+
+7 day-rows for the current ISO week (Monday start). Each row: weekday + day-of-month,
+then a small row of colored dots — **one per distinct tag present that day**, not one
+per instance (a repeated Simple tag still shows a single dot, mirroring how Day zoom
+collapses repeats into `walk (2)`). Tapping a row jumps to that day at Day zoom.
+
+### Month / Year zoom
+
+Both are a **single-tag heatmap** — a `TagPickerDropdown` at the top (empty-state prompt
+"Pick a tag above to see its heatmap" until one is picked; no auto-selected default) and
+a grid of `HeatmapDayCell`s shaded by that tag's **instance count only**, same rule
+regardless of tag type (a Rated tag's actual average rating isn't reflected — only how
+often it was logged that day). Shading buckets: 0 instances = transparent, 1 = 30%, 2 =
+60%, 3+ = 100% of the tag's own color. Tapping a day cell jumps to that day at Day zoom.
+
+- **Month**: one weekday-aligned grid (leading blank cells align the 1st to its column).
+- **Year**: the same grid, 12 small copies stacked (one per month), in its own
+  scrollable column — safe under the gesture model above, since vertical swipe lives on
+  the separate handle strip, not this scrollable body.
 
 ### Quick-entry tag bar
 
 Replaces the earlier modal "add a tag" bottom sheet (see ADR-009 in `DECISIONS.md`).
-Pinned to the bottom of the Day screen (`Scaffold`'s `bottomBar`), always visible —
-no FAB, no sheet to open.
+Pinned to the bottom of Day zoom only (`CalendarContent`'s `Scaffold` `bottomBar`,
+conditional on `zoomLevel == DAY`), always visible while at Day zoom — no FAB, no sheet
+to open.
 
 ```
 ┌─────────────────────────────┐
@@ -139,12 +191,14 @@ no FAB, no sheet to open.
   same as always — typing a name with no matches shows the Simple/Rated/Valued chip row
   (or the Rated/Valued hint line, if the shorthand syntax is used) exactly as it would
   for any other new tag name.
+- **No tag picked yet** (Month/Year): centered prompt in place of the heatmap grid,
+  until the user picks one from the dropdown.
 
 ## Tags screen
 
 Per `CONVENTIONS.md` § Compose conventions: `TagsScreen` (collects `TagsViewModel`
 state) delegates to stateless `TagsContent`. Management-only — no "create tag" entry
-here; creation stays exclusively in the Day screen's quick-entry bar (ADR-009).
+here; creation stays exclusively in the Calendar screen's Day-zoom quick-entry bar (ADR-009).
 
 ### Layout
 
@@ -161,7 +215,7 @@ here; creation stays exclusively in the Day screen's quick-entry bar (ADR-009).
 ```
 
 - **Filter**: typing filters the list by name (case-insensitive substring), same
-  `TagRepository.observeFiltered` query the Day screen's quick-entry bar already uses.
+  `TagRepository.observeFiltered` query the Day-zoom quick-entry bar already uses.
 - **Color dot** (leading, tappable): opens `ColorPickerDialog` — the fixed palette plus
   a custom hue-slider + saturation/value-square picker (see below). Saving calls
   `TagsViewModel.updateColor`.
@@ -173,7 +227,7 @@ here; creation stays exclusively in the Day screen's quick-entry bar (ADR-009).
 - **Delete** (trailing trash icon): fetches the tag's instance count, then shows a
   confirmation dialog ("Delete '<name>'? This removes it from N tagged day(s). This
   can't be undone.") before cascading the delete — per `FEATURES.md`'s resolved
-  deletion decision. Unlike the Day screen's capsule "x" (no confirmation, single day
+  deletion decision. Unlike Day zoom's capsule "x" (no confirmation, single day
   only), this is a whole-tag, all-days deletion, so it keeps the confirmation step.
 - **Color picker**: fixed palette row (tap to select immediately) plus a custom
   section — a rainbow-gradient hue slider and a draggable saturation/value square,
@@ -199,8 +253,6 @@ here; creation stays exclusively in the Day screen's quick-entry bar (ADR-009).
 
 ## Open notes for later docs
 
-- **M4** replaces the static header with swipeable zoom levels and adds Week/Month/Year
-  layouts (chip overview, single-tag heatmap) — full spec deferred until then.
 - **M5** adds a Drive backup/restore entry point — likely a simple settings-style
   screen reachable from somewhere in the nav shell (exact placement TBD when reached).
 - **Considered: Undo snackbar for the capsule "x"** (Keep-style) — instead of (or

@@ -84,10 +84,11 @@ com.tagday/
 │   └── DriveRestoreService.kt
 └── ui/
     ├── calendar/
-    │   ├── day/       # DayScreen, DayViewModel
-    │   ├── week/
-    │   ├── month/
-    │   └── year/
+    │   ├── CalendarScreen.kt, CalendarViewModel.kt  # shared across all 4 zoom levels
+    │   ├── day/       # DayContent — Day zoom's stateless content
+    │   ├── week/      # WeekContent
+    │   ├── month/     # MonthContent
+    │   └── year/      # YearContent
     ├── tags/          # TagsScreen, TagsViewModel
     ├── backup/        # settings-adjacent screen for manual export/import
     ├── navigation/     # NavHost, nav graph

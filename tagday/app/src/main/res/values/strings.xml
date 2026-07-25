@@ -29,6 +29,10 @@
     <string name="day_empty_message">Nothing tagged yet — add one below</string>
     <string name="day_edit_tags_content_description">Edit tags</string>
 
+    <string name="calendar_tag_picker_label">Tag</string>
+    <string name="calendar_tag_picker_placeholder">Pick a tag</string>
+    <string name="calendar_heatmap_pick_tag_message">Pick a tag above to see its heatmap</string>
+
     <string name="day_quick_entry_placeholder">Add a tag…</string>
     <string name="day_quick_entry_submit_content_description">Add tag</string>
     <string name="day_quick_entry_type_hint">Will create a new %1$s tag</string>

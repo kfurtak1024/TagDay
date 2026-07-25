@@ -199,3 +199,68 @@ library. One implementation gotcha worth recording: the SV square's drag handler
 manual `awaitEachGesture { awaitFirstDown(); ...; drag(...) }` rather than
 `detectDragGestures` — the latter only fires after touch-slop movement, so a plain tap
 (no drag) would silently do nothing, breaking "tap to jump to a color."
+
+---
+
+## ADR-012: One `CalendarViewModel` for all four zoom levels; plain drag detection, not `Pager`
+
+**Decision:** M4 introduces `CalendarViewModel`/`CalendarScreen`/`CalendarContent`
+(replacing `DayViewModel`/`DayScreen`) as the single owner of `zoomLevel`, `focusedDate`,
+and `selectedTagId` (the heatmap tag picker) for all four zoom levels — Week/Month/Year
+get plain stateless `XyzContent` composables, not their own ViewModels. Swipe navigation
+is one `Modifier.pointerInput { detectDragGestures(...) }` per gesture, accumulating
+total drag delta and picking the dominant axis on release, rather than a vertical
+`Pager(pageCount = 4)` (zoom) nesting horizontal per-zoom `Pager`s (time).
+
+**Alternatives considered:** (1) A ViewModel per zoom level, coordinated somehow so
+switching zoom/date stays consistent across them. (2) Nested `Pager`s for the swipe
+gestures, leaning on their built-in fling/snap physics.
+
+**Why:** `FEATURES.md` frames Day/Week/Month/Year as "one continuous calendar... not
+four separate screens" — one ViewModel matches that directly, and avoids the real
+complexity of keeping several Hilt-scoped ViewModels' state in sync, which "tap a day →
+jump to Day zoom" would otherwise require (it must change zoom level *and* focused date
+together; `ARCHITECTURE.md` already licensed "selected tag for heatmap" as legitimate
+ViewModel-held state before this milestone existed). Nested `Pager`s were rejected for
+the same reason: each `PagerState` would need two-way sync with the shared
+`focusedDate`/`zoomLevel`, which is exactly the coordination problem jump-to-day makes
+painful. `detectDragGestures`'s touch-slop-before-firing behavior is *correct* here
+(the opposite of ADR-011's color-picker problem) — requiring real movement before
+triggering is exactly what distinguishes a swipe from a tap. One layout gotcha this
+produced: the vertical (zoom) gesture lives only on a dedicated, always-present,
+non-scrolling swipe-handle strip, never on the scrollable body (Day's tag list, Year's
+stacked month grids) — Compose resolves a child scrollable's consumption before an
+ancestor drag detector sees the delta, so a vertical detector on the body would silently
+lose to the scroll. See `UI_UX.md` § Calendar screen.
+
+**Amendment 1**: the first version of that strip was swipe-only — a thin bar with a
+subtle drag-handle graphic and no other affordance. In practice this was too easy to
+miss entirely (small hit target, nothing telling you it was interactive or what zoom
+level you were in), confirmed once real usage was possible. The strip was changed to
+show the current zoom level's name with real tappable up/down chevron buttons (48dp,
+meeting the standard minimum touch target) — the swipe still worked as a shortcut, it
+was just no longer the only way to reach Week/Month/Year.
+
+**Amendment 2**: by explicit request, the dedicated strip (chevrons, label, and the
+reserved space it took) was removed entirely in favor of a plain swipe-only interaction
+again — but merged into the *same* whole-body drag detector as the horizontal
+time-navigation gesture, rather than reviving the old isolated-strip approach. This
+knowingly reintroduced the scroll-conflict tradeoff the original strip was built to
+avoid (a vertical swipe starting on Day's tag list or Year's stacked month grids scrolled
+instead of changing zoom, since Compose gives the scrollable child priority) — accepted
+at the time as a reasonable cost for a simpler, uncluttered screen.
+
+**Amendment 3**: that tradeoff turned out not to be necessary — by explicit request, the
+vertical gesture was rebuilt on `Modifier.scrollable`/`rememberScrollableState` instead
+of a raw `pointerInput`/`detectDragGestures` accumulator. `Modifier.scrollable`
+automatically installs nested-scroll participation (confirmed by reading
+`ScrollableNestedScrollConnection` in Compose Foundation's source: it only implements
+`onPostScroll`/`onPostFling`, never `onPreScroll`), so a `scrollable` ancestor only ever
+receives the delta a descendant `scrollable` (Day's `verticalScroll`, Year's stacked
+grids) didn't need — the descendant still scrolls normally first. This gives the
+vertical zoom-swipe the *same activation zone* as the horizontal time-swipe on every
+zoom level, including Day and Year, without the earlier tradeoff. Horizontal stays a
+plain `detectDragGestures` (now `orientationLock`ed to `Horizontal` so it no longer
+competes with the vertical `scrollable` for a given drag) since nothing scrolls
+horizontally and there's no equivalent descendant to negotiate with. See `UI_UX.md`
+§ Calendar screen.

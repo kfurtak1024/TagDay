@@ -18,22 +18,16 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -54,72 +48,45 @@ private val monthFormatter = DateTimeFormatter.ofPattern("MMMM")
 private val yearFormatter = DateTimeFormatter.ofPattern("yyyy")
 private val headerContentDescriptionFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The Day zoom level's body — header card + tag capsules. Owns no `Scaffold`/top/bottom
+ * bar of its own; those are shared across zoom levels by `CalendarContent`.
+ */
 @Composable
 fun DayContent(
-    uiState: DayUiState,
-    onEditTagsClick: () -> Unit,
-    onAddExistingTag: (tagId: Long) -> Unit,
-    onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
+    date: LocalDate,
+    groups: List<TagDisplayGroup>,
     onGroupClick: (TagDisplayGroup) -> Unit,
     onGroupQuickRemove: (TagDisplayGroup) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = {},
-                actions = {
-                    IconButton(onClick = onEditTagsClick) {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(R.drawable.ic_label),
-                            contentDescription = stringResource(R.string.day_edit_tags_content_description),
-                        )
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            TagQuickEntryBar(
-                allTags = uiState.allTags,
-                onAddExistingTag = onAddExistingTag,
-                onCreateTag = onCreateTag,
-            )
-        },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize(),
-        ) {
-            CalendarHeaderCard(date = uiState.date, modifier = Modifier.padding(16.dp))
-            if (uiState.groups.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(text = stringResource(R.string.day_empty_message))
-                }
-            } else {
-                FlowRow(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    uiState.groups.forEach { group ->
-                        TagGroupCapsule(
-                            group = group,
-                            onCapsuleClick = { onGroupClick(group) },
-                            onRemoveClick = { onGroupQuickRemove(group) },
-                        )
-                    }
+    Column(modifier = modifier.fillMaxSize()) {
+        CalendarHeaderCard(date = date, modifier = Modifier.padding(16.dp))
+        if (groups.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = stringResource(R.string.day_empty_message))
+            }
+        } else {
+            FlowRow(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                groups.forEach { group ->
+                    TagGroupCapsule(
+                        group = group,
+                        onCapsuleClick = { onGroupClick(group) },
+                        onRemoveClick = { onGroupQuickRemove(group) },
+                    )
                 }
             }
         }
@@ -215,36 +182,30 @@ private fun TagGroupCapsule(
 private fun DayContentPreview() {
     TagDayTheme {
         DayContent(
-            uiState = DayUiState(
-                isLoading = false,
-                date = LocalDate.of(2026, 7, 25),
-                groups = listOf(
-                    TagDisplayGroup(
-                        tagId = 1,
-                        tagName = "walk",
-                        color = 0xFF81C784.toInt(),
-                        type = TagType.SIMPLE,
-                        instances = listOf(
-                            TagInstance(id = 1, tagId = 1, date = 0, createdAt = 0),
-                            TagInstance(id = 2, tagId = 1, date = 0, createdAt = 1),
-                        ),
-                        summary = "walk (2)",
+            date = LocalDate.of(2026, 7, 25),
+            groups = listOf(
+                TagDisplayGroup(
+                    tagId = 1,
+                    tagName = "walk",
+                    color = 0xFF81C784.toInt(),
+                    type = TagType.SIMPLE,
+                    instances = listOf(
+                        TagInstance(id = 1, tagId = 1, date = 0, createdAt = 0),
+                        TagInstance(id = 2, tagId = 1, date = 0, createdAt = 1),
                     ),
-                    TagDisplayGroup(
-                        tagId = 2,
-                        tagName = "reading",
-                        color = 0xFF4FC3F7.toInt(),
-                        type = TagType.SIMPLE,
-                        instances = listOf(
-                            TagInstance(id = 3, tagId = 2, date = 0, createdAt = 0),
-                        ),
-                        summary = "reading",
+                    summary = "walk (2)",
+                ),
+                TagDisplayGroup(
+                    tagId = 2,
+                    tagName = "reading",
+                    color = 0xFF4FC3F7.toInt(),
+                    type = TagType.SIMPLE,
+                    instances = listOf(
+                        TagInstance(id = 3, tagId = 2, date = 0, createdAt = 0),
                     ),
+                    summary = "reading",
                 ),
             ),
-            onEditTagsClick = {},
-            onAddExistingTag = {},
-            onCreateTag = { _, _, _, _ -> },
             onGroupClick = {},
             onGroupQuickRemove = {},
         )
@@ -256,10 +217,8 @@ private fun DayContentPreview() {
 private fun DayContentEmptyPreview() {
     TagDayTheme {
         DayContent(
-            uiState = DayUiState(isLoading = false, date = LocalDate.of(2026, 7, 25)),
-            onEditTagsClick = {},
-            onAddExistingTag = {},
-            onCreateTag = { _, _, _, _ -> },
+            date = LocalDate.of(2026, 7, 25),
+            groups = emptyList(),
             onGroupClick = {},
             onGroupQuickRemove = {},
         )

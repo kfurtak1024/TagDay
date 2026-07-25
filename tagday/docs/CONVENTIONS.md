@@ -26,9 +26,9 @@ within the same subtree.
 | Repository interface | `XyzRepository` | `TagRepository` |
 | Repository impl | `XyzRepositoryImpl` | `TagRepositoryImpl` |
 | Hilt module | `XyzModule` | `DatabaseModule`, `RepositoryModule` |
-| ViewModel | `XyzViewModel` | `DayViewModel`, `TagsViewModel` |
-| UI state | `XyzUiState` | `DayUiState`, `TagsUiState` |
-| Screen composable | `XyzScreen` | `DayScreen`, `TagsScreen` |
+| ViewModel | `XyzViewModel` | `CalendarViewModel`, `TagsViewModel` |
+| UI state | `XyzUiState` | `CalendarUiState`, `TagsUiState` |
+| Screen composable | `XyzScreen` | `CalendarScreen`, `TagsScreen` |
 | Stateless content composable | `XyzContent` | `DayContent` (see below) |
 | UI-facing display model | `XyzDisplay*` / descriptive noun | `TagDisplayGroup` |
 
@@ -42,8 +42,8 @@ One top-level public declaration per file; filename matches it exactly
   `null` selections) — no `lateinit`, no nullable `UiState?` at the collection site.
 - ViewModel exposes exactly one:
   ```kotlin
-  val uiState: StateFlow<DayUiState> = /* combine/map repository flows */
-      .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayUiState())
+  val uiState: StateFlow<CalendarUiState> = /* combine/map repository flows */
+      .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
   ```
 - No sealed-class `Intent`/`Effect` dispatch system (see `ARCHITECTURE.md` § State
   management for the reasoning). One-shot events (snackbar after Drive export, nav
@@ -52,7 +52,7 @@ One top-level public declaration per file; filename matches it exactly
 
 ## Compose conventions
 
-- **Screen composables** (`DayScreen`) take a `ViewModel` via `hiltViewModel()`,
+- **Screen composables** (`CalendarScreen`) take a `ViewModel` via `hiltViewModel()`,
   collect `uiState`, and delegate rendering to a **stateless content composable**
   (`DayContent`) that takes plain data + lambdas — this is what gets `@Preview`'d and
   unit-tested, without needing a real ViewModel or Hilt graph.

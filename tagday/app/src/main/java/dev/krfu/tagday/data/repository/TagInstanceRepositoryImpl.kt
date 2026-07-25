@@ -16,6 +16,16 @@ class TagInstanceRepositoryImpl @Inject constructor(
     override fun observeDayGroups(date: Int): Flow<List<TagDisplayGroup>> =
         tagInstanceDao.observeForDay(date).map { it.toDisplayGroups() }
 
+    override fun observeRangeGroups(start: Int, end: Int): Flow<Map<Int, List<TagDisplayGroup>>> =
+        tagInstanceDao.observeForRange(start, end).map { rows ->
+            rows.groupBy { it.instance.date }.mapValues { (_, dayRows) -> dayRows.toDisplayGroups() }
+        }
+
+    override fun observeTagInstanceCounts(tagId: Long, start: Int, end: Int): Flow<Map<Int, Int>> =
+        tagInstanceDao.observeForTagInRange(tagId, start, end).map { instances ->
+            instances.groupingBy { it.date }.eachCount()
+        }
+
     override suspend fun addInstance(tagId: Long, date: Int, rating: Int?, value: String?) {
         tagInstanceDao.insert(
             TagInstance(
