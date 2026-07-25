@@ -2,7 +2,8 @@ package dev.krfu.tagday.ui.theme
 
 /**
  * Fixed palette offered when creating a tag (per FEATURES.md § Tag repository).
- * Values are stored as-is in `Tag.color`; a custom color picker arrives in M3.
+ * Values are stored as-is in `Tag.color`; a custom color picker also exists in the
+ * Tags view's `ColorPickerDialog` (M3) for recoloring an existing tag.
  */
 object TagPalette {
     val colors: List<Int> = listOf(

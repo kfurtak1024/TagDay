@@ -177,7 +177,7 @@ to open.
     hint-line confirmation.
 - **Color** is auto-assigned for every new tag by cycling through `TagPalette`'s fixed
   colors (`allTags.size % colors.size`) — there is no manual color picker in this flow.
-  Recoloring a tag is deferred to M3's Tags view, same as renaming.
+  Recoloring a tag happens in the Tags view (M3) instead, same as renaming.
 - The type choice (explicit chip tap, or syntax inference) only ever happens at
   **creation**, never when adding to an already-existing tag, and is never editable
   afterward (`FEATURES.md` § Tag types) — this rule is unchanged from before.

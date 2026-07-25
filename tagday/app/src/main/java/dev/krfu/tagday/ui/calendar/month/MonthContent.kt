@@ -22,10 +22,10 @@ import dev.krfu.tagday.ui.calendar.CalendarDateRanges
 import dev.krfu.tagday.ui.calendar.HeatmapDayCell
 import dev.krfu.tagday.ui.calendar.TagPickerDropdown
 import dev.krfu.tagday.ui.theme.TagDayTheme
+import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-
-private val dayOfWeekFormatter = DateTimeFormatter.ofPattern("EEEEE")
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun MonthContent(
@@ -70,20 +70,20 @@ internal fun MonthGrid(
     onDayClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val range = CalendarDateRanges.monthRange(focusedDate)
-    val firstOfMonth = range.start
-    // ISO weekday: Monday=1 .. Sunday=7 — leading blanks align the 1st to its column.
-    val leadingBlanks = firstOfMonth.dayOfWeek.value - 1
-    val days = generateSequence(range.start) { it.plusDays(1) }
-        .takeWhile { it <= range.endInclusive }
-        .toList()
-    val cells: List<LocalDate?> = List(leadingBlanks) { null } + days
+    val cells = CalendarDateRanges.monthGridCells(focusedDate)
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            days.take(7).forEach { day ->
+            // Monday..Sunday header, independent of which weekday the month happens to
+            // start on — using the first 7 *days of the month* here was a bug: for any
+            // month not starting on a Monday, the labels didn't match the grid columns
+            // below (which are correctly Monday-aligned via monthGridCells' leading blanks).
+            DayOfWeek.entries.forEach { dayOfWeek ->
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Text(text = day.format(dayOfWeekFormatter), style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
                 }
             }
         }

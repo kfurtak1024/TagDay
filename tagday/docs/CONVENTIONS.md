@@ -98,9 +98,5 @@ One top-level public declaration per file; filename matches it exactly
 - KDoc only where behavior is non-obvious from the signature (e.g. "why cascade delete
   is safe here" belongs in code near the delete call, referencing `DATA_MODEL.md`).
 - Don't restate what's already captured in `docs/` — link to it instead of duplicating.
-
-## Open notes for later docs
-
-- `TESTING.md` should define test class/method naming (e.g. `given...when...then` vs.
-  backtick-named `fun \`adds tag to day\`()`), building on the fake-Repository approach
-  from `ARCHITECTURE.md` § Testability.
+- Test naming, the fake-DAO pattern, and what's deliberately left untested: see
+  `TESTING.md`.

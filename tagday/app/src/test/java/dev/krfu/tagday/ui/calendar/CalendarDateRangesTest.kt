@@ -67,4 +67,39 @@ class CalendarDateRangesTest {
         assertEquals(LocalDate.of(2027, 7, 22), CalendarDateRanges.step(date, ZoomLevel.YEAR, 1))
         assertEquals(LocalDate.of(2025, 7, 22), CalendarDateRanges.step(date, ZoomLevel.YEAR, -1))
     }
+
+    // Regression coverage for a real bug: MonthGrid's weekday header used to be derived
+    // from the month's own first 7 days instead of a canonical Monday..Sunday sequence,
+    // silently misaligning the header against these grid cells for any month that
+    // doesn't start on a Monday (i.e. most months).
+
+    @Test
+    fun monthGridCells_monthStartingOnMonday_hasNoLeadingBlanks() {
+        // June 2026 starts on a Monday.
+        val cells = CalendarDateRanges.monthGridCells(LocalDate.of(2026, 6, 15))
+        assertEquals(30, cells.size)
+        assertEquals(LocalDate.of(2026, 6, 1), cells.first())
+        assertEquals(LocalDate.of(2026, 6, 30), cells.last())
+        assertEquals(0, cells.takeWhile { it == null }.size)
+    }
+
+    @Test
+    fun monthGridCells_monthStartingMidweek_alignsFirstDayToItsColumn() {
+        // July 2026 starts on a Wednesday (the 3rd weekday column, 0-indexed 2).
+        val cells = CalendarDateRanges.monthGridCells(LocalDate.of(2026, 7, 22))
+        assertEquals(2, cells.takeWhile { it == null }.size)
+        assertEquals(33, cells.size) // 2 leading blanks + 31 days
+        assertEquals(LocalDate.of(2026, 7, 1), cells[2])
+        assertEquals(LocalDate.of(2026, 7, 31), cells.last())
+    }
+
+    @Test
+    fun monthGridCells_monthStartingOnSunday_hasSixLeadingBlanks() {
+        // February 2026 (non-leap) starts on a Sunday, the last weekday column.
+        val cells = CalendarDateRanges.monthGridCells(LocalDate.of(2026, 2, 10))
+        assertEquals(6, cells.takeWhile { it == null }.size)
+        assertEquals(34, cells.size) // 6 leading blanks + 28 days
+        assertEquals(LocalDate.of(2026, 2, 1), cells[6])
+        assertEquals(LocalDate.of(2026, 2, 28), cells.last())
+    }
 }

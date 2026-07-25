@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /** Shading bucket for the heatmap — instance count only, same rule for every tag type. */
-private fun alphaForCount(count: Int): Float = when {
+internal fun alphaForCount(count: Int): Float = when {
     count <= 0 -> 0f
     count == 1 -> 0.3f
     count == 2 -> 0.6f

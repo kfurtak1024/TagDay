@@ -59,7 +59,7 @@ before.
 ## Package layout
 
 ```
-com.tagday/
+dev.krfu.tagday/
 ├── TagDayApplication.kt
 ├── di/
 │   ├── DatabaseModule.kt        # provides Room DB + DAOs
@@ -85,9 +85,11 @@ com.tagday/
 └── ui/
     ├── calendar/
     │   ├── CalendarScreen.kt, CalendarViewModel.kt  # shared across all 4 zoom levels
+    │   ├── CalendarUiState.kt, CalendarPeriodData.kt, ZoomLevel.kt, CalendarDateRanges.kt
+    │   ├── HeatmapDayCell.kt, TagPickerDropdown.kt  # shared Month/Year pieces
     │   ├── day/       # DayContent — Day zoom's stateless content
     │   ├── week/      # WeekContent
-    │   ├── month/     # MonthContent
+    │   ├── month/     # MonthContent (+ MonthGrid, reused by year/)
     │   └── year/      # YearContent
     ├── tags/          # TagsScreen, TagsViewModel
     ├── backup/        # settings-adjacent screen for manual export/import
@@ -117,14 +119,21 @@ Standard MVVM + unidirectional data flow, kept intentionally simple:
 - `RepositoryModule`: `@Binds` each Repository interface to its impl, scoped
   `@Singleton`.
 - ViewModels use `@HiltViewModel` + constructor injection of Repository interfaces —
-  never DAOs directly, so ViewModels stay decoupled from Room and remain testable with
-  fake Repositories.
+  never DAOs directly, keeping ViewModels decoupled from Room.
 
 ## Testability
 
-Repository interfaces (not concrete Room-backed classes) are what ViewModels depend
-on, so ViewModel unit tests use fake/in-memory Repository implementations with no
-Room or Android framework dependency. Full test strategy lives in `TESTING.md`.
+In practice, unit tests target the **Repository** layer, not ViewModels: each
+`XyzRepositoryImpl` is tested against a small hand-written fake of its DAO interface
+(an anonymous `object : XyzDao` implementing only the methods exercised, throwing
+`NotImplementedError()` for the rest), exercising real aggregation/mapping logic with
+no Room or Android framework dependency. ViewModels are deliberately left untested —
+they're thin coordinators (wire a Repository call to a `StateFlow`, launch a
+`viewModelScope` suspend call) with no branching logic of their own worth isolating;
+testing them would need `kotlinx-coroutines-test` (`Dispatchers.setMain`), which isn't
+part of this project's test setup. Pure, non-Compose utility logic (parsing, date-range
+math) gets its own plain-function unit tests alongside the Repository tests. Full
+conventions live in `TESTING.md`.
 
 ## Open notes for later docs
 

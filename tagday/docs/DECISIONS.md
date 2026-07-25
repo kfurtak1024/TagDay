@@ -264,3 +264,28 @@ plain `detectDragGestures` (now `orientationLock`ed to `Horizontal` so it no lon
 competes with the vertical `scrollable` for a given drag) since nothing scrolls
 horizontally and there's no equivalent descendant to negotiate with. See `UI_UX.md`
 § Calendar screen.
+
+---
+
+## ADR-013: Trunk-based branching + build/test-only CI for now
+
+**Decision:** Single `main` branch with short-lived PR feature branches and SemVer git
+tags for releases — no GitFlow. CI (`.github/workflows/ci.yml`, GitHub Actions) runs
+unit tests + a debug build on every push/PR. Signing, release builds, and any Play
+Store upload stay fully manual for now.
+
+**Alternatives considered:** (1) GitFlow-style `develop`/`release/*`/`hotfix/*`
+branches. (2) CI that also builds and signs a release `.aab` on tag push, as a
+downloadable artifact. (3) CI that fully automates upload to Play Console via the Play
+Developer API.
+
+**Why:** This is a solo-developer project working toward its first Play Store release
+— GitFlow's parallel-branch coordination solves a problem (multiple contributors,
+overlapping release trains) that doesn't exist here; trunk-based is simpler and
+sufficient, revisit only if a second regular contributor joins. Automating signing or
+Play Store upload before doing a single release by hand would mean debugging
+keystore/Play Console issues through CI logs instead of a local terminal — the manual
+path is where mistakes are cheap and visible the first time through. Automation is
+worth adding once that process itself is trusted and repeatable, starting with signing
+(see `BUILD_RELEASE.md` § Open notes) before ever considering automating the Play Store
+upload itself.

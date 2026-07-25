@@ -23,7 +23,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
@@ -64,12 +63,22 @@ fun CalendarContent(
     // onPreScroll) — so the tag list/month grids still scroll normally first, and only
     // once they're out of room (or on zoom levels with nothing scrollable at all, e.g.
     // Week/Month) does the remaining drag reach this zoom-swipe tracking. See ADR-012.
+    //
+    // Horizontal and vertical are two independent detection mechanisms (raw pointerInput
+    // vs. scrollable), so an imprecise diagonal swipe could otherwise cross both
+    // thresholds and fire both a zoom change *and* a time step from one gesture. Both
+    // accumulators are shared across the two closures below so each side can check the
+    // other's current magnitude before firing, and both reset together once either does
+    // — a lightweight approximation of "only the dominant axis wins" without unifying
+    // the two mechanisms outright.
+    var horizontalAccumulator by remember { mutableFloatStateOf(0f) }
     var verticalAccumulator by remember { mutableFloatStateOf(0f) }
     val verticalZoomScrollState = rememberScrollableState { delta ->
         verticalAccumulator += delta
-        if (abs(verticalAccumulator) > SWIPE_THRESHOLD_PX) {
+        if (abs(verticalAccumulator) > SWIPE_THRESHOLD_PX && abs(verticalAccumulator) > abs(horizontalAccumulator)) {
             onStepZoom(if (verticalAccumulator < 0) 1 else -1)
             verticalAccumulator = 0f
+            horizontalAccumulator = 0f
         }
         delta
     }
@@ -108,18 +117,21 @@ fun CalendarContent(
                     // Horizontal (move through time) stays a plain drag detector —
                     // nothing in any zoom level scrolls horizontally, so there's no
                     // descendant to negotiate with.
-                    var acc = Offset.Zero
                     detectDragGestures(
                         orientationLock = Orientation.Horizontal,
-                        onDragStart = { _, _, _ -> acc = Offset.Zero },
+                        onDragStart = { _, _, _ -> horizontalAccumulator = 0f },
                         onDrag = { change, delta ->
                             change.consume()
-                            acc += delta
+                            horizontalAccumulator += delta.x
                         },
                         onDragEnd = {
-                            if (abs(acc.x) > SWIPE_THRESHOLD_PX) {
-                                onStepTime(if (acc.x < 0) 1 else -1)
+                            if (abs(horizontalAccumulator) > SWIPE_THRESHOLD_PX &&
+                                abs(horizontalAccumulator) >= abs(verticalAccumulator)
+                            ) {
+                                onStepTime(if (horizontalAccumulator < 0) 1 else -1)
                             }
+                            horizontalAccumulator = 0f
+                            verticalAccumulator = 0f
                         },
                     )
                 },
