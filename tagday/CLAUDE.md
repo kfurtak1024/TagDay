@@ -52,7 +52,9 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 
 ## Current status
 
-M0/M1/M2 are implemented: Day view with Simple, Rated, and Valued tags, full grouping/
-aggregation, and per-instance editing. Adding a tag uses an always-visible quick-entry
-bar (`TagQuickEntryBar`) with syntax-based type inference and auto-assigned color —
-see ADR-009 in `docs/DECISIONS.md`. Next up is M3 (Tags view) — see `docs/MILESTONES.md`.
+M0-M3 are implemented: Day view with Simple, Rated, and Valued tags, full grouping/
+aggregation, and per-instance editing; adding a tag uses an always-visible quick-entry
+bar (`TagQuickEntryBar`) with syntax-based type inference and auto-assigned color (ADR-009);
+`TagsScreen` (list/filter/rename/recolor/delete, reached via the Day screen's top-right
+icon) is management-only, with an in-house HSV color picker (ADR-011). Next up is M4
+(Calendar zoom levels) — see `docs/MILESTONES.md`.

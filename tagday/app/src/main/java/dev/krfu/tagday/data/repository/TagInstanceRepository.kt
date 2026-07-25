@@ -12,4 +12,6 @@ interface TagInstanceRepository {
     suspend fun updateInstance(instance: TagInstance)
 
     suspend fun removeInstance(instance: TagInstance)
+
+    suspend fun removeInstances(instances: List<TagInstance>)
 }

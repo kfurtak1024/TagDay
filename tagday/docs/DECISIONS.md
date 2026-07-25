@@ -179,3 +179,23 @@ unused ~999 icons out of a release build, inflating APK size for a single icon's
 of value. A one-off vector drawable costs one small XML file and zero new dependencies.
 This is now the house rule for any future icon missing from core — see
 `CONVENTIONS.md` § Resources.
+
+---
+
+## ADR-011: In-house HSV color picker, no third-party library
+
+**Decision:** M3's custom color picker (`ColorPickerDialog.kt`) is hand-built: a
+rainbow-gradient hue `Slider` plus a draggable saturation/value square (`Box` with two
+stacked gradients + a manual pointer-gesture handler), converting to/from the stored
+ARGB `Int` via `android.graphics.Color.colorToHSV`/`HSVToColor` rather than hand-written
+color math.
+
+**Alternative considered:** Add a third-party Compose color-picker library.
+
+**Why:** Same reasoning as ADR-010 — this is one self-contained piece of UI, not
+worth a new dependency for. `android.graphics.Color`'s HSV conversion utilities avoid
+the risk of hand-rolled RGB↔HSV math being subtly wrong, without needing an external
+library. One implementation gotcha worth recording: the SV square's drag handler uses a
+manual `awaitEachGesture { awaitFirstDown(); ...; drag(...) }` rather than
+`detectDragGestures` — the latter only fires after touch-slop movement, so a plain tap
+(no drag) would silently do nothing, breaking "tap to jump to a color."

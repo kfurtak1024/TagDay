@@ -35,6 +35,10 @@ class TagInstanceRepositoryImpl @Inject constructor(
     override suspend fun removeInstance(instance: TagInstance) {
         tagInstanceDao.delete(instance)
     }
+
+    override suspend fun removeInstances(instances: List<TagInstance>) {
+        tagInstanceDao.deleteAll(instances)
+    }
 }
 
 // Grouping/aggregation happens here in Kotlin, not SQL — see DATA_MODEL.md § Grouping & aggregation.

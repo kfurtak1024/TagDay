@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
+import dev.krfu.tagday.data.model.TagDisplayGroup
 import dev.krfu.tagday.data.repository.TagInstanceRepository
 import dev.krfu.tagday.data.repository.TagRepository
 import dev.krfu.tagday.ui.theme.TagPalette
@@ -54,6 +55,12 @@ class DayViewModel @Inject constructor(
     fun removeInstance(instance: TagInstance) {
         viewModelScope.launch {
             tagInstanceRepository.removeInstance(instance)
+        }
+    }
+
+    fun removeGroup(group: TagDisplayGroup) {
+        viewModelScope.launch {
+            tagInstanceRepository.removeInstances(group.instances)
         }
     }
 }

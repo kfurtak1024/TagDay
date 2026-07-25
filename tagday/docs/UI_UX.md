@@ -1,8 +1,8 @@
 # TagDay — UI / UX
 
-Scoped to what **M0/M1/M2** actually need (see `MILESTONES.md`): the navigation shell and
-the Day screen, all three tag types. Week/Month/Year zoom, the Tags management screen, and
-Drive backup UI are specced when their milestone arrives — don't design ahead of them.
+Scoped to what **M0-M3** actually need (see `MILESTONES.md`): the navigation shell, the
+Day screen (all three tag types), and the Tags management screen. Week/Month/Year zoom
+and Drive backup UI are specced when their milestone arrives — don't design ahead of them.
 
 ## Navigation shell
 
@@ -14,7 +14,7 @@ a screen you navigate *into* and back out of, not a peer tab.
 | Destination | Route | Content |
 |---|---|---|
 | Calendar | `calendar` | `DayScreen` — the only zoom level that exists yet, start destination |
-| Tags | `tags` | Placeholder screen ("Tags view — coming soon") until M3, pushed on top of Calendar |
+| Tags | `tags` | `TagsScreen` — list/filter/rename/recolor/delete, pushed on top of Calendar |
 
 There's no nested zoom-level navigation within Calendar yet — that's introduced in M4
 alongside the swipe gestures; for now `calendar` routes straight to `DayScreen` showing
@@ -26,7 +26,7 @@ NavHost(navController, startDestination = "calendar") {
         DayScreen(onNavigateToTags = { navController.navigate("tags") })
     }
     composable("tags") {
-        TagsPlaceholderScreen(onNavigateBack = { navController.popBackStack() })
+        TagsScreen(onNavigateBack = { navController.popBackStack() })
     }
 }
 ```
@@ -68,6 +68,10 @@ delegates to stateless `DayContent`.
   that instance's rating, at any time — no requirement to rate at creation); Valued
   instances show an editable text field for that instance's value. All three keep the
   delete icon.
+- **Capsule "x"**: each group's capsule also has its own inline "x" (`TagGroupCapsule` in
+  `DayContent.kt`), separate from the row-tap above — tapping it removes *all* of that
+  tag's instances for the day immediately, regardless of count, with no confirmation
+  dialog (a fast full-group removal, vs. the row-tap's per-instance editing/removal).
 - **Header**: a `Card` styled like a tear-off desk-calendar page — a top band in
   `colorScheme.primary` with the month and year in small caps, then the day-of-month
   in `displayLarge`/bold (the dominant element) and the weekday name in `titleLarge`
@@ -136,6 +140,54 @@ no FAB, no sheet to open.
   (or the Rated/Valued hint line, if the shorthand syntax is used) exactly as it would
   for any other new tag name.
 
+## Tags screen
+
+Per `CONVENTIONS.md` § Compose conventions: `TagsScreen` (collects `TagsViewModel`
+state) delegates to stateless `TagsContent`. Management-only — no "create tag" entry
+here; creation stays exclusively in the Day screen's quick-entry bar (ADR-009).
+
+### Layout
+
+```
+┌─────────────────────────────┐
+│  ←  Tags                     │  ← TopAppBar, back arrow returns to Calendar
+├─────────────────────────────┤
+│  🔍 Search tags…             │  ← filters the list below as you type
+├─────────────────────────────┤
+│  ● walk        Simple   ✎ 🗑 │  ← color dot / name+type / rename / delete
+│  ● freediving  Rated    ✎ 🗑 │
+│  ● movie       Valued   ✎ 🗑 │
+└─────────────────────────────┘
+```
+
+- **Filter**: typing filters the list by name (case-insensitive substring), same
+  `TagRepository.observeFiltered` query the Day screen's quick-entry bar already uses.
+- **Color dot** (leading, tappable): opens `ColorPickerDialog` — the fixed palette plus
+  a custom hue-slider + saturation/value-square picker (see below). Saving calls
+  `TagsViewModel.updateColor`.
+- **Rename** (trailing pencil icon): opens `RenameTagDialog`, a text field pre-filled
+  with the current name. Save is disabled while blank; a duplicate name (checked
+  case-insensitively, excluding the tag being renamed) shows an inline error instead of
+  saving. Renaming only changes the display name — existing day associations
+  (keyed by tag id) are unaffected, per `FEATURES.md`.
+- **Delete** (trailing trash icon): fetches the tag's instance count, then shows a
+  confirmation dialog ("Delete '<name>'? This removes it from N tagged day(s). This
+  can't be undone.") before cascading the delete — per `FEATURES.md`'s resolved
+  deletion decision. Unlike the Day screen's capsule "x" (no confirmation, single day
+  only), this is a whole-tag, all-days deletion, so it keeps the confirmation step.
+- **Color picker**: fixed palette row (tap to select immediately) plus a custom
+  section — a rainbow-gradient hue slider and a draggable saturation/value square,
+  converted to/from the stored ARGB `Int` via `android.graphics.Color.colorToHSV`/
+  `HSVToColor` (see ADR-011 in `DECISIONS.md` for why this is hand-built rather than a
+  third-party color-picker dependency). A live preview swatch shows whichever of
+  palette-tap or custom-adjust was chosen last; Save commits it.
+
+### Empty states
+
+- **No tags in the repository yet**: "No tags yet" centered message.
+- **No tags match the filter**: "No tags match '<query>'" — distinct from the
+  fully-empty case so it's clear the repository isn't actually empty.
+
 ## Theming
 
 - Material 3 default color scheme for v1; a full theming/dynamic-color pass is M6
@@ -147,9 +199,21 @@ no FAB, no sheet to open.
 
 ## Open notes for later docs
 
-- **M3** replaces `TagsPlaceholderScreen` with the real Tags management screen (list,
-  filter, rename, recolor, delete) — full spec deferred until then.
 - **M4** replaces the static header with swipeable zoom levels and adds Week/Month/Year
   layouts (chip overview, single-tag heatmap) — full spec deferred until then.
 - **M5** adds a Drive backup/restore entry point — likely a simple settings-style
   screen reachable from somewhere in the nav shell (exact placement TBD when reached).
+- **Considered: Undo snackbar for the capsule "x"** (Keep-style) — instead of (or
+  alongside) today's immediate, no-confirmation removal, show a transient snackbar with
+  an "Undo" action after tapping a capsule's "x". Not decided, not scheduled to a
+  milestone; parking the tradeoffs here for whenever it's revisited:
+  - **Pros**: matches this app's existing lightweight-interaction style better than a
+    confirmation dialog would (no modal on every removal, just a safety net for the rare
+    mistake); familiar pattern.
+  - **Cons**: a snackbar auto-dismisses (~4-10s) — easy to miss, giving false confidence
+    that removal is "safe"; needs real state handling (defer the actual delete until
+    the snackbar dismisses, or delete immediately and cache the removed rows for
+    restore); needs to coexist visually with the quick-entry bar already pinned to the
+    bottom of this screen (the same class of layout issue as the suggestion-list overlap
+    bug); and scope is undecided — capsule "x" only, or also the per-instance delete in
+    `InstanceListSheet`.

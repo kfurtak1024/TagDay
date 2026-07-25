@@ -35,14 +35,7 @@ fun DayScreen(
         onAddExistingTag = { tagId -> viewModel.addExistingTag(tagId) },
         onCreateTag = { name, type, rating, value -> viewModel.createTagAndAdd(name, type, rating, value) },
         onGroupClick = { group -> selectedGroupKey = group.tagId },
-        onGroupQuickRemove = { group ->
-            // A single instance can be removed directly; anything more still needs picking.
-            if (group.instances.size == 1) {
-                viewModel.removeInstance(group.instances.single())
-            } else {
-                selectedGroupKey = group.tagId
-            }
-        },
+        onGroupQuickRemove = { group -> viewModel.removeGroup(group) },
         modifier = modifier,
     )
 

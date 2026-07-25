@@ -10,4 +10,14 @@ interface TagRepository {
     fun observeFiltered(query: String): Flow<List<Tag>>
 
     suspend fun createTag(name: String, color: Int, type: TagType): Long
+
+    suspend fun nameExists(name: String, excludingId: Long = 0): Boolean
+
+    suspend fun renameTag(tag: Tag, newName: String)
+
+    suspend fun updateColor(tag: Tag, color: Int)
+
+    suspend fun instanceCount(tagId: Long): Int
+
+    suspend fun deleteTag(tag: Tag)
 }

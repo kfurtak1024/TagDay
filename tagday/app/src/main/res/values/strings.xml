@@ -2,7 +2,29 @@
     <string name="app_name">TagDay</string>
     <string name="nav_tags_label">Tags</string>
     <string name="nav_back_content_description">Back</string>
-    <string name="tags_placeholder_message">Tags view — coming soon</string>
+
+    <string name="tags_search_placeholder">Search tags…</string>
+    <string name="tags_empty_message">No tags yet</string>
+    <string name="tags_empty_filtered_message">No tags match \"%1$s\"</string>
+    <string name="tags_rename_content_description">Rename %1$s</string>
+    <string name="tags_delete_content_description">Delete %1$s</string>
+    <string name="tags_color_content_description">Change color for %1$s</string>
+
+    <string name="tags_rename_dialog_title">Rename tag</string>
+    <string name="tags_rename_dialog_label">Name</string>
+    <string name="tags_rename_dialog_error_duplicate">A tag with this name already exists</string>
+    <string name="tags_rename_dialog_save">Save</string>
+    <string name="tags_rename_dialog_cancel">Cancel</string>
+
+    <string name="tags_color_dialog_title">Tag color</string>
+    <string name="tags_color_dialog_custom_label">Custom</string>
+    <string name="tags_color_dialog_save">Save</string>
+    <string name="tags_color_dialog_cancel">Cancel</string>
+
+    <string name="tags_delete_dialog_title">Delete \"%1$s\"?</string>
+    <string name="tags_delete_dialog_message">This removes it from %1$d tagged day(s). This can\'t be undone.</string>
+    <string name="tags_delete_dialog_confirm">Delete</string>
+    <string name="tags_delete_dialog_cancel">Cancel</string>
 
     <string name="day_empty_message">Nothing tagged yet — add one below</string>
     <string name="day_edit_tags_content_description">Edit tags</string>

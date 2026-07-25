@@ -44,9 +44,10 @@ A tag can be added to the same day more than once. Each type displays this diffe
   flow get one auto-assigned from the fixed palette (no picker in that flow — see
   `UI_UX.md` § Quick-entry tag bar); manual choice from the fixed palette, plus a custom
   color option, belongs to the Tags view (M3).
-- Tags are created inline where they're first used (from the day-tagging flow, with type
-  either inferred from a `name:***`/`name:text` shorthand or chosen explicitly when
-  ambiguous) or from the Tags view — type is chosen once, at creation.
+- Tags are created inline where they're first used, from the day-tagging flow only
+  (type either inferred from a `name:***`/`name:text` shorthand or chosen explicitly
+  when ambiguous) — type is chosen once, at creation. The Tags view is management-only
+  (list/filter/rename/recolor/delete existing tags); it has no "create" entry.
 - **Renaming** a tag (Tags view) updates the display name only — all existing day
   associations (identified by id) are unaffected.
 - **Deleting** a tag cascade-deletes all of its instances across every day, after a
@@ -123,4 +124,8 @@ Management screen for the tag repository.
   `movie: [dune, terminator]`) shows an editable list of the individual instances —
   each instance can be edited or removed independently. Removing the last instance in a
   group simply removes that instance, and the group disappears from the day's display
-  once empty (no separate "clear group" action needed).
+  once empty.
+- **Quick-removing a whole group**: each group's capsule also has an inline "x" that
+  removes *all* of that tag's instances for the day in one tap, regardless of count
+  (`walk (2)` → tap → gone entirely) — a fast path for "I didn't mean to tag this today
+  at all," distinct from the instance list's per-instance editing/removal above.
