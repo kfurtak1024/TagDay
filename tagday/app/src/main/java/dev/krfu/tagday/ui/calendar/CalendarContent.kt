@@ -50,6 +50,7 @@ fun CalendarContent(
     onGroupClick: (TagDisplayGroup) -> Unit,
     onGroupQuickRemove: (TagDisplayGroup) -> Unit,
     onDayClick: (LocalDate) -> Unit,
+    onMonthClick: (LocalDate) -> Unit,
     onTagPicked: (Long) -> Unit,
     onStepTime: (Int) -> Unit,
     onStepZoom: (Int) -> Unit,
@@ -176,7 +177,7 @@ fun CalendarContent(
                         selectedTagId = uiState.selectedTagId,
                         countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)?.countsByDate.orEmpty(),
                         onTagPicked = onTagPicked,
-                        onDayClick = onDayClick,
+                        onMonthClick = onMonthClick,
                     )
                 }
             }

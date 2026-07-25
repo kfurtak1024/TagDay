@@ -37,6 +37,7 @@ fun CalendarScreen(
         onGroupClick = { group -> selectedGroupKey = group.tagId },
         onGroupQuickRemove = { group -> viewModel.removeGroup(group) },
         onDayClick = { date -> viewModel.jumpToDay(date) },
+        onMonthClick = { date -> viewModel.jumpToMonth(date) },
         onTagPicked = { tagId -> viewModel.selectHeatmapTag(tagId) },
         onStepTime = { direction -> viewModel.stepTime(direction) },
         onStepZoom = { direction -> viewModel.stepZoom(direction) },

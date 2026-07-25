@@ -370,3 +370,40 @@ periodic trigger is a deliberate, scoped exception to `FEATURES.md`'s "no live s
 non-goal — staleness-triggered snapshotting is not real-time multi-device sync, and the
 line is worth keeping explicit so this decision isn't later read as reopening that
 non-goal.
+
+---
+
+## ADR-016: Year zoom becomes a fixed, no-scroll 12-month grid; tap jumps to Month, not Day
+
+**Decision:** `YearContent` renders all 12 months at once as a fixed 4-row × 3-column
+grid, sized entirely with nested `weight()` modifiers rather than `verticalScroll` +
+`aspectRatio`, replacing the previous stacked-and-scrollable list of full-size
+`MonthGrid`s. Each month tile is a compact 6-week × 7-day grid of plain shaded cells —
+no day-of-month numbers, no per-day tap target. The whole tile is clickable instead,
+calling a new `CalendarViewModel.jumpToMonth(date)` (mirroring `jumpToDay`) that jumps
+to Month zoom for that month rather than straight to Day zoom.
+
+**Alternatives considered:** (1) Keep the stacked-and-scrollable list of full-size
+month grids (status quo). (2) Fixed one-screen grid, but keep per-day tap-to-Day-zoom
+by shrinking `HeatmapDayCell` (day numbers and all) down to fit.
+
+**Why:** The goal was an actual heat-map — see everything at a glance, GitHub-
+contributions style — which requires all 12 months visible without scrolling. That
+alone rules out (1). Sizing via nested `weight()` rather than `aspectRatio` was chosen
+because `aspectRatio` derives height from width and has no way to guarantee the result
+fits the remaining vertical space on an arbitrary device — it would need a `verticalScroll`
+fallback for the cases where it doesn't, defeating the point. Weight-based sizing lets
+Compose's constraint system divide the exact available space top-down, guaranteeing a
+fit by construction on any screen size, with no measurement math of our own.
+
+(2) was rejected on touch-target grounds: fitting 12 months on one screen puts each day
+cell at roughly 15–18dp square on a typical phone — well under the 48dp minimum touch
+target, and day-of-month numbers are illegible at that size regardless. Rather than
+ship a heat-map with barely-tappable, barely-readable day cells, the day-level detail
+was dropped entirely from Year zoom (pure color, no numbers) and the tap target was
+moved up a level: the whole month tile (~100dp+, comfortably above the minimum) jumps
+to Month zoom, where `HeatmapDayCell` is already full-size, numbered, and individually
+tappable. This makes Year→Day a two-step drill-down instead of one, a deliberate
+trade-off of Week/Month's established "tap a day, land on Day zoom" convenience for a
+control that's actually usable at Year's density. `UI_UX.md` was updated accordingly —
+Week and Month keep the original one-step rule; Year is now the documented exception.

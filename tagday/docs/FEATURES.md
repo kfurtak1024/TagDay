@@ -79,7 +79,9 @@ The core, default view of the app.
     top of the view selects which tag is focused, and each day is shaded by that tag's
     presence/intensity for the period. Showing one tag at a time keeps the view legible
     even at Year zoom, where a full multi-tag chip display wouldn't fit.
-- Tapping a day at any zoom level above Day jumps to that day at Day zoom.
+- Tapping a day at Week or Month zoom jumps to that day at Day zoom. Year zoom has no
+  per-day tap target (see `UI_UX.md` § Month / Year zoom); tapping a month there jumps
+  to that month at Month zoom instead.
 
 ### 2. Tags view
 

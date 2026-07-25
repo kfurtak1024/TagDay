@@ -104,6 +104,10 @@ class CalendarViewModel @Inject constructor(
         query.update { it.copy(zoomLevel = ZoomLevel.DAY, focusedDate = date) }
     }
 
+    fun jumpToMonth(date: LocalDate) {
+        query.update { it.copy(zoomLevel = ZoomLevel.MONTH, focusedDate = date) }
+    }
+
     fun selectHeatmapTag(tagId: Long) {
         query.update { it.copy(selectedTagId = tagId) }
     }

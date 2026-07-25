@@ -56,8 +56,9 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 M0-M4 are implemented. `CalendarScreen`/`CalendarViewModel` (`ui/calendar/`) drive all
 four zoom levels — Day, Week, Month, Year — as one continuous calendar (not four
 screens), with swipe gestures (vertical = zoom level, horizontal = move through time),
-tap-a-day-to-jump-to-Day-zoom, and a top-bar `ZoomLevelPicker` dropdown for jumping
-directly to a zoom level, per ADR-012 and ADR-014. Day zoom has Simple, Rated, and Valued
+tap-a-day-to-jump-to-Day-zoom (Week/Month) or tap-a-month-to-jump-to-Month-zoom (Year,
+per ADR-016), and a top-bar `ZoomLevelPicker` dropdown for jumping directly to a zoom
+level, per ADR-012 and ADR-014. Day zoom has Simple, Rated, and Valued
 tags with full grouping/aggregation and per-instance editing; adding a tag uses an
 always-visible quick-entry bar (`TagQuickEntryBar`) with syntax-based type inference and
 auto-assigned color (ADR-009). Week is a multi-tag dot overview; Month/Year are a

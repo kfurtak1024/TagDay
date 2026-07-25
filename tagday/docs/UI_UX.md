@@ -79,17 +79,20 @@ on `CalendarViewModel`'s `zoomLevel` state.
   Vertical steps the zoom level the same way conceptually (swipe up zooms out,
   Day→Week→Month→Year; swipe down zooms in; clamped at both ends, no wraparound) but is
   implemented as a real `Modifier.scrollable`, not a raw drag detector — this lets it
-  properly negotiate with Day's tag list and Year's stacked month grids, which are
-  themselves `scrollable` (via `verticalScroll`). A nested `scrollable` only ever grabs
-  the delta its descendant didn't consume (Compose dispatches to the *innermost*
-  scrollable first), so the tag list/month grids still scroll normally, and only once
-  they're out of room — or on Week/Month, which have nothing scrollable at all — does a
-  vertical swipe change the zoom level. Same activation zone as horizontal, same screen
-  area, on every zoom level. Deliberately not `Pager`-based — see ADR-012 in
-  `DECISIONS.md`, including its amendments for the history of this control (a dedicated
-  tappable strip was tried and removed; the original vertical-only-off-to-the-side
-  gesture zone was replaced by this nested-scroll-aware whole-body approach).
-- **Tap a day** at Week/Month/Year zoom jumps straight to that day at Day zoom
+  properly negotiate with Day's tag list, which is itself `scrollable` (via
+  `verticalScroll`). A nested `scrollable` only ever grabs the delta its descendant
+  didn't consume (Compose dispatches to the *innermost* scrollable first), so the tag
+  list still scrolls normally, and only once it's out of room — or on Week/Month/Year,
+  which have nothing scrollable at all (see § Month / Year zoom for Year's fixed,
+  no-scroll grid) — does a vertical swipe change the zoom level. Same activation zone as
+  horizontal, same screen area, on every zoom level. Deliberately not `Pager`-based —
+  see ADR-012 in `DECISIONS.md`, including its amendments for the history of this
+  control (a dedicated tappable strip was tried and removed; the original
+  vertical-only-off-to-the-side gesture zone was replaced by this nested-scroll-aware
+  whole-body approach).
+- **Tap a day** at Week/Month zoom jumps straight to that day at Day zoom; **tap a
+  month** at Year zoom jumps to that month at Month zoom (Year has no per-day tap
+  target — see § Month / Year zoom)
   (`CalendarViewModel.jumpToDay`), per `FEATURES.md`.
 
 ### Day zoom
@@ -140,16 +143,25 @@ collapses repeats into `walk (2)`). Tapping a row jumps to that day at Day zoom.
 ### Month / Year zoom
 
 Both are a **single-tag heatmap** — a `TagPickerDropdown` at the top (empty-state prompt
-"Pick a tag above to see its heatmap" until one is picked; no auto-selected default) and
-a grid of `HeatmapDayCell`s shaded by that tag's **instance count only**, same rule
-regardless of tag type (a Rated tag's actual average rating isn't reflected — only how
-often it was logged that day). Shading buckets: 0 instances = transparent, 1 = 30%, 2 =
-60%, 3+ = 100% of the tag's own color. Tapping a day cell jumps to that day at Day zoom.
+"Pick a tag above to see its heatmap" until one is picked; no auto-selected default),
+shaded by that tag's **instance count only**, same rule regardless of tag type (a Rated
+tag's actual average rating isn't reflected — only how often it was logged that day).
+Shading buckets: 0 instances = transparent, 1 = 30%, 2 = 60%, 3+ = 100% of the tag's own
+color (`alphaForCount` in `HeatmapDayCell.kt`, shared by both zoom levels).
 
-- **Month**: one weekday-aligned grid (leading blank cells align the 1st to its column).
-- **Year**: the same grid, 12 small copies stacked (one per month), in its own
-  scrollable column — safe under the gesture model above, since vertical swipe lives on
-  the separate handle strip, not this scrollable body.
+- **Month**: one weekday-aligned grid of `HeatmapDayCell`s, each showing its
+  day-of-month number (leading blank cells align the 1st to its column). Tapping a day
+  cell jumps to that day at Day zoom.
+- **Year** (`ui/calendar/year/YearContent.kt`): all 12 months at once, as a fixed
+  4-row × 3-column grid sized with nested `weight()` modifiers — not `verticalScroll`,
+  not `aspectRatio` — so it always fills the available area exactly, with no scrolling
+  and no overflow risk regardless of screen size. Each month tile is a compact 6-week ×
+  7-day grid of plain shaded cells: no day-of-month numbers (illegible at this density)
+  and no per-day tap target (cells land well under the 48dp minimum touch target at
+  12-months-on-one-screen density). The **whole month tile** is the tap target instead,
+  jumping to Month zoom for that month rather than straight to Day zoom — a two-step
+  drill-down (Year → tap month → Month → tap day) instead of Month/Week's one-step. See
+  ADR-016 in `DECISIONS.md`.
 
 ### Quick-entry tag bar
 
