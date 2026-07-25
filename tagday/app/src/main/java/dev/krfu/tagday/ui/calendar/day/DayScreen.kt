@@ -11,7 +11,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewModel()) {
+fun DayScreen(
+    onNavigateToTags: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: DayViewModel = hiltViewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     var selectedGroupKey by remember { mutableStateOf<Long?>(null) }
@@ -27,6 +31,7 @@ fun DayScreen(modifier: Modifier = Modifier, viewModel: DayViewModel = hiltViewM
 
     DayContent(
         uiState = uiState,
+        onEditTagsClick = onNavigateToTags,
         onAddExistingTag = { tagId -> viewModel.addExistingTag(tagId) },
         onCreateTag = { name, type, rating, value -> viewModel.createTagAndAdd(name, type, rating, value) },
         onGroupClick = { group -> selectedGroupKey = group.tagId },

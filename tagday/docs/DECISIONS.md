@@ -159,3 +159,23 @@ already unambiguous from what was typed. Manual color choice was cut rather than
 squeezed into the inline flow because there's no natural place for a palette next to a
 one-line field; recoloring already belongs to M3's Tags view, so tags created via
 quick-entry are simply auto-colored until then. See `UI_UX.md` § Quick-entry tag bar.
+
+---
+
+## ADR-010: Custom vector drawable for icons missing from `material-icons-core`
+
+**Decision:** The Day screen's "open Tags" button needed a tag/label-shaped icon, which
+doesn't exist in `material-icons-core` (the only icon dependency this project has — a
+~48-icon subset covering basics like Edit, Settings, List, Star). Rather than adding
+`material-icons-extended`, a single hand-added vector drawable (`res/drawable/ic_label.xml`, the standard Material "label" glyph) was added and loaded via
+`ImageVector.vectorResource(...)`.
+
+**Alternative considered:** Add `androidx.compose.material:material-icons-extended` and
+use `Icons.Filled.Sell` directly — less code, one dependency line.
+
+**Why:** `material-icons-extended` bundles ~1000+ icon composables; `app/build.gradle.kts` currently disables release-build optimization
+(`buildTypes.release.optimization.enable = false`), so R8 wouldn't tree-shake the
+unused ~999 icons out of a release build, inflating APK size for a single icon's worth
+of value. A one-off vector drawable costs one small XML file and zero new dependencies.
+This is now the house rule for any future icon missing from core — see
+`CONVENTIONS.md` § Resources.

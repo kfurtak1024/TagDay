@@ -13,22 +13,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
@@ -37,11 +48,17 @@ import dev.krfu.tagday.ui.theme.TagDayTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-private val dateHeaderFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy")
+private val dayOfMonthFormatter = DateTimeFormatter.ofPattern("d")
+private val weekdayFormatter = DateTimeFormatter.ofPattern("EEEE")
+private val monthFormatter = DateTimeFormatter.ofPattern("MMMM")
+private val yearFormatter = DateTimeFormatter.ofPattern("yyyy")
+private val headerContentDescriptionFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DayContent(
     uiState: DayUiState,
+    onEditTagsClick: () -> Unit,
     onAddExistingTag: (tagId: Long) -> Unit,
     onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
     onGroupClick: (TagDisplayGroup) -> Unit,
@@ -50,6 +67,19 @@ fun DayContent(
 ) {
     Scaffold(
         modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = {},
+                actions = {
+                    IconButton(onClick = onEditTagsClick) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(R.drawable.ic_label),
+                            contentDescription = stringResource(R.string.day_edit_tags_content_description),
+                        )
+                    }
+                },
+            )
+        },
         bottomBar = {
             TagQuickEntryBar(
                 allTags = uiState.allTags,
@@ -63,11 +93,7 @@ fun DayContent(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
-            Text(
-                text = stringResource(R.string.day_header_today, uiState.date.format(dateHeaderFormatter)),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(16.dp),
-            )
+            CalendarHeaderCard(date = uiState.date, modifier = Modifier.padding(16.dp))
             if (uiState.groups.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -96,6 +122,49 @@ fun DayContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CalendarHeaderCard(date: LocalDate, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                contentDescription = date.format(headerContentDescriptionFormatter)
+            },
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.primary)
+                .padding(vertical = 8.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = "${date.format(monthFormatter).uppercase()} ${date.format(yearFormatter)}",
+                style = MaterialTheme.typography.labelLarge,
+                letterSpacing = 2.sp,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = date.format(dayOfMonthFormatter),
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = date.format(weekdayFormatter),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
         }
     }
 }
@@ -173,6 +242,7 @@ private fun DayContentPreview() {
                     ),
                 ),
             ),
+            onEditTagsClick = {},
             onAddExistingTag = {},
             onCreateTag = { _, _, _, _ -> },
             onGroupClick = {},
@@ -187,6 +257,7 @@ private fun DayContentEmptyPreview() {
     TagDayTheme {
         DayContent(
             uiState = DayUiState(isLoading = false, date = LocalDate.of(2026, 7, 25)),
+            onEditTagsClick = {},
             onAddExistingTag = {},
             onCreateTag = { _, _, _, _ -> },
             onGroupClick = {},

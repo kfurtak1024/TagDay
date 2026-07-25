@@ -18,7 +18,11 @@ fun TagDayNavHost(
         startDestination = TagDayDestination.CALENDAR.route,
         modifier = modifier,
     ) {
-        composable(TagDayDestination.CALENDAR.route) { DayScreen() }
-        composable(TagDayDestination.TAGS.route) { TagsPlaceholderScreen() }
+        composable(TagDayDestination.CALENDAR.route) {
+            DayScreen(onNavigateToTags = { navController.navigate(TagDayDestination.TAGS.route) })
+        }
+        composable(TagDayDestination.TAGS.route) {
+            TagsPlaceholderScreen(onNavigateBack = { navController.popBackStack() })
+        }
     }
 }

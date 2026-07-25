@@ -7,12 +7,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -34,10 +31,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.local.entity.TagType
+
+private const val MAX_VISIBLE_SUGGESTIONS = 4
 
 @Composable
 fun TagQuickEntryBar(
@@ -74,10 +74,15 @@ fun TagQuickEntryBar(
     Surface(modifier = modifier.fillMaxWidth().imePadding(), tonalElevation = 3.dp) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             when {
-                suggestions.isNotEmpty() -> LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                    items(suggestions, key = { it.id }) { tag ->
+                suggestions.isNotEmpty() -> Column {
+                    // Capped by count, not height, and forced single-line: a partial,
+                    // clipped row (e.g. a height cap that lands mid-item) reads as the
+                    // input field overlapping the list rather than as "scroll for more".
+                    suggestions.take(MAX_VISIBLE_SUGGESTIONS).forEach { tag ->
                         ListItem(
-                            headlineContent = { Text(tag.name) },
+                            headlineContent = {
+                                Text(text = tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            },
                             leadingContent = { ColorDot(color = tag.color) },
                             modifier = Modifier.clickable {
                                 onAddExistingTag(tag.id)

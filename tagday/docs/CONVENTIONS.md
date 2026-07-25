@@ -84,6 +84,13 @@ One top-level public declaration per file; filename matches it exactly
 - `strings.xml` keys are prefixed by screen: `day_add_tag_button`, `tags_rename_dialog_title`.
 - Material 3 theme colors (`colors.xml`/`Theme.kt`) are the only colors that belong in
   resources — those are app chrome, not tag data.
+- **Icons**: prefer `material-icons-core` (already a dependency) over adding
+  `material-icons-extended` for the sake of one missing icon — the extended artifact
+  bundles ~1000+ icons, and release builds currently have minification disabled
+  (`app/build.gradle.kts`), so unused icons wouldn't be tree-shaken out. When the icon
+  you need isn't in core, add a single hand-picked vector drawable to `res/drawable/`
+  (e.g. `ic_label.xml`) and load it via `ImageVector.vectorResource(R.drawable.xyz)`
+  instead.
 
 ## Comments & documentation
 

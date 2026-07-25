@@ -6,21 +6,28 @@ Drive backup UI are specced when their milestone arrives — don't design ahead 
 
 ## Navigation shell
 
-Bottom navigation, two destinations:
+No bottom navigation bar — Calendar (`DayScreen`) is the sole start destination and the
+app's primary surface. Tags is reached via a small icon in the top-right corner of the
+Day screen (see § Day screen below) and returned from via its own back arrow, i.e. it's
+a screen you navigate *into* and back out of, not a peer tab.
 
-| Destination | Route | M0/M1 content |
+| Destination | Route | Content |
 |---|---|---|
-| Calendar | `calendar` | `DayScreen` — the only zoom level that exists yet |
-| Tags | `tags` | Placeholder screen ("Tags view — coming soon") until M3 |
+| Calendar | `calendar` | `DayScreen` — the only zoom level that exists yet, start destination |
+| Tags | `tags` | Placeholder screen ("Tags view — coming soon") until M3, pushed on top of Calendar |
 
-`Calendar` is the default/start destination. There's no nested zoom-level navigation
-yet — that's introduced in M4 alongside the swipe gestures; for now `calendar` routes
-straight to `DayScreen` showing today.
+There's no nested zoom-level navigation within Calendar yet — that's introduced in M4
+alongside the swipe gestures; for now `calendar` routes straight to `DayScreen` showing
+today.
 
 ```kotlin
 NavHost(navController, startDestination = "calendar") {
-    composable("calendar") { DayScreen() }
-    composable("tags") { TagsPlaceholderScreen() }
+    composable("calendar") {
+        DayScreen(onNavigateToTags = { navController.navigate("tags") })
+    }
+    composable("tags") {
+        TagsPlaceholderScreen(onNavigateBack = { navController.popBackStack() })
+    }
 }
 ```
 
@@ -33,7 +40,11 @@ delegates to stateless `DayContent`.
 
 ```
 ┌─────────────────────────────┐
-│  Today, 24 July 2026         │  ← header, static in M1 (no prev/next — that's M4)
+│                         [🏷]  │  ← top-right icon, opens Tags (see § Navigation shell)
+│░░░░░░░░ JULY 2026 ░░░░░░░░░░│  ← header card: colored month/year band
+│                              │
+│             25               │  ← huge day-of-month number
+│           Saturday            │  ← weekday name
 ├─────────────────────────────┤
 │  walk (2)                    │  ← Simple group row
 │  reading                     │  ← Simple group row (single instance, no count)
@@ -57,6 +68,17 @@ delegates to stateless `DayContent`.
   that instance's rating, at any time — no requirement to rate at creation); Valued
   instances show an editable text field for that instance's value. All three keep the
   delete icon.
+- **Header**: a `Card` styled like a tear-off desk-calendar page — a top band in
+  `colorScheme.primary` with the month and year in small caps, then the day-of-month
+  in `displayLarge`/bold (the dominant element) and the weekday name in `titleLarge`
+  below it. The four fields are exposed to screen readers as one merged node ("Saturday,
+  25 July 2026") rather than four separate fragments.
+- **Top bar**: a minimal `TopAppBar` with no title text, holding a single trailing
+  `IconButton` (tag/label-shaped icon, `R.drawable.ic_label` — a custom vector, since
+  `material-icons-core`'s bundled set has no tag icon and pulling in
+  `material-icons-extended` for one icon isn't worth the APK-size tradeoff while release
+  builds have minification disabled, "Edit tags") that navigates to the Tags screen —
+  this is the only way into Tags, per § Navigation shell.
 - **No date navigation in M1.** The header shows today's date but isn't tappable and
   there are no prev/next controls — that's deliberately deferred to M4's swipe
   gestures, per the milestone scope. Don't add a stopgap arrow button; it'd just be

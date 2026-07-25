@@ -1,11 +1,11 @@
 <resources>
     <string name="app_name">TagDay</string>
-    <string name="nav_calendar_label">Calendar</string>
     <string name="nav_tags_label">Tags</string>
+    <string name="nav_back_content_description">Back</string>
     <string name="tags_placeholder_message">Tags view — coming soon</string>
 
-    <string name="day_header_today">Today, %1$s</string>
     <string name="day_empty_message">Nothing tagged yet — add one below</string>
+    <string name="day_edit_tags_content_description">Edit tags</string>
 
     <string name="day_quick_entry_placeholder">Add a tag…</string>
     <string name="day_quick_entry_submit_content_description">Add tag</string>
