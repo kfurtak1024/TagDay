@@ -58,11 +58,18 @@ screens you haven't reached yet.
 
 ## M5 — Google Drive backup/restore
 
-- Manual export of local data to Drive.
-- Manual restore/import from a prior export.
-- No live sync — this milestone is explicitly scoped to manual, one-shot operations.
-- **Done when**: a fresh install can restore a previously exported backup and end up
-  with an identical `Tag`/`TagInstance` dataset.
+- App-managed backup to a hidden Drive app-data folder (`drive.appdata` scope), not a
+  user-browsable file — see `BACKUP_SYNC.md` and ADR-015.
+- Backup triggered manually ("Back up now") or automatically when the last backup is
+  more than 24h stale, checked on app launch — periodic with a manual override, not a
+  background sync service.
+- Restore is auto-offered on a fresh install when a backup exists for the signed-in
+  Google account (no file picker) and fully replaces local `Tag`/`TagInstance` data —
+  no merge.
+- Still not live sync — one-directional backup only, no multi-device sync.
+- **Done when**: a fresh install, once signed in, is offered and can restore the most
+  recent backup and end up with an identical `Tag`/`TagInstance` dataset to what the
+  source device had at last backup.
 
 ## M6 — Polish
 

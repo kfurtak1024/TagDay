@@ -45,7 +45,7 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Room entities, relations, DAOs/queries |
 | [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) | Package layout, naming, Compose style rules |
 | [`docs/UI_UX.md`](docs/UI_UX.md) | Screens, nav graph, theming |
-| `docs/BACKUP_SYNC.md` | Drive backup format, trigger, restore, conflicts — **not yet written**, M5 |
+| [`docs/BACKUP_SYNC.md`](docs/BACKUP_SYNC.md) | Drive backup format, trigger, restore — M5, not yet implemented |
 | [`docs/TESTING.md`](docs/TESTING.md) | What's tested, how, and deliberately not |
 | [`docs/BUILD_RELEASE.md`](docs/BUILD_RELEASE.md) | Branching, CI, signing, Play Store release process |
 | [`docs/MILESTONES.md`](docs/MILESTONES.md) | Vertical-slice build plan |

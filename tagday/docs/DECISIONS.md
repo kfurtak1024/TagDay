@@ -324,3 +324,49 @@ zoom-*strip* (label + chevrons reserving space in the swipe/content body, compet
 with Day's tag list and Year's stacked grids for the same gesture zone). This control
 lives in the top bar's chrome instead, in a slot that was sitting empty, and is
 additive to the swipe rather than a rebuild of what Amendment 2 removed.
+
+---
+
+## ADR-015: M5 backup — Drive REST API, hidden `appdata` scope, periodic + manual trigger
+
+**Decision:** M5 backs up to a hidden Google Drive app-data folder via the Drive REST
+API (`drive.appdata` scope, Sign in with Google through Credential Manager), not a
+user-visible file. Backup runs on a manual "Back up now" action or automatically when
+the last backup is more than 24h stale (checked on app launch) — periodic with a
+manual override, not a background sync service. Restore is auto-offered on a fresh
+install (backup detected for the signed-in account, local data still empty) rather than
+picked via a file browser, and fully replaces local data rather than merging. See
+`BACKUP_SYNC.md` for the full shape.
+
+**Alternatives considered:** (1) Android Auto Backup (`android:allowBackup` +
+`BackupAgent`/XML rules) — the OS's own built-in mechanism, essentially free in code
+but fully OS-triggered and invisible, with no way to expose a manual backup/restore
+action or let the user choose which backup to restore. (2) Drive REST API with
+`drive.file` scope, storing a visible file in "My Drive", triggered only manually
+(the original M5 wording). (3) True live/real-time multi-device sync (e.g. backed by
+Firestore instead of Drive files, with incremental change tracking and conflict
+resolution).
+
+**Why:** (1) was rejected outright — it cannot fulfill "manual restore, user picks
+when," which is the actual feature being built, regardless of how little code it would
+take. (3) was rejected as out of scope: `FEATURES.md` explicitly lists multi-device
+live sync as a v1 non-goal, and building a real sync engine (incremental diffing,
+conflict resolution) is a fundamentally different and much larger system than a backup
+mechanism — worth revisiting only if v1.1 scope ever calls for actual multi-device use.
+That leaves a choice between (2) and the periodic-hidden approach actually chosen,
+which mirrors how WhatsApp does Drive backup on Android: hidden storage (so the backup
+file never clutters "My Drive" or needs the user to manage it directly) and a
+periodic-with-manual-override trigger (so backups happen without the user having to
+remember, while still offering an explicit "back up now" for peace of mind before doing
+something risky). `drive.appdata` over `drive.file` trades away user-visible file
+management (the user can no longer see/move/share the backup file directly) for a
+cleaner "it just works" model — an acceptable trade for a dataset this small (a JSON
+dump of two tables, not media), where the value of a visible file is low and the
+annoyance of Drive clutter is the more likely user-facing outcome. Note: WhatsApp's Drive
+backups additionally don't count against the user's Drive storage quota — that's a
+specific Google↔Meta business arrangement, not something `drive.appdata` grants by
+itself; irrelevant here regardless, since TagDay's backup size is negligible. The
+periodic trigger is a deliberate, scoped exception to `FEATURES.md`'s "no live sync"
+non-goal — staleness-triggered snapshotting is not real-time multi-device sync, and the
+line is worth keeping explicit so this decision isn't later read as reopening that
+non-goal.

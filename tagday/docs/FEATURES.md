@@ -94,9 +94,15 @@ Management screen for the tag repository.
 ## Additional features (v1)
 
 3. **Backup / restore (Google Drive)**
-   - Manual export of the local database/tag data to the user's Google Drive.
-   - Manual restore/import from a previously exported backup.
-   - No live sync in v1 — this is a backup mechanism, not multi-device sync.
+   - App-managed backup to a hidden Drive app-data folder (`drive.appdata`), not a file
+     the user browses in "My Drive" — see `BACKUP_SYNC.md`.
+   - Backed up manually ("Back up now") or automatically when the last backup is more
+     than 24h stale, checked on app launch — periodic with a manual override, not a
+     background sync service.
+   - Restore is auto-offered on a fresh install when a backup exists for the signed-in
+     account (no file picker) and fully replaces local data, no merge.
+   - Still not live sync in v1 — one-directional backup/restore only, not multi-device
+     sync.
 
 ## Non-goals for v1
 
