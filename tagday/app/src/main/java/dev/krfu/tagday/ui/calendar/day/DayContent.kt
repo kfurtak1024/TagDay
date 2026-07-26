@@ -39,6 +39,7 @@ import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
 import dev.krfu.tagday.ui.theme.TagDayTheme
+import dev.krfu.tagday.ui.theme.TemporalColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -95,11 +96,13 @@ fun DayContent(
 
 @Composable
 private fun CalendarHeaderCard(date: LocalDate, modifier: Modifier = Modifier) {
+    val (temporalLabelRes, temporalColor) = temporalLabelFor(date)
+    val temporalLabelText = stringResource(temporalLabelRes)
     Card(
         modifier = modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
-                contentDescription = date.format(headerContentDescriptionFormatter)
+                contentDescription = "${date.format(headerContentDescriptionFormatter)}, $temporalLabelText"
             },
         shape = RoundedCornerShape(16.dp),
     ) {
@@ -130,9 +133,43 @@ private fun CalendarHeaderCard(date: LocalDate, modifier: Modifier = Modifier) {
             Text(
                 text = date.format(weekdayFormatter),
                 style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            TemporalLabel(
+                textRes = temporalLabelRes,
+                color = temporalColor,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun TemporalLabel(textRes: Int, color: Int, modifier: Modifier = Modifier) {
+    val backgroundColor = Color(color)
+    val contentColor = if (backgroundColor.luminance() > 0.5f) Color.Black else Color.White
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(backgroundColor)
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+    ) {
+        Text(
+            text = stringResource(textRes),
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+        )
+    }
+}
+
+/** Past/today/future relative to the device clock — see `UI_UX.md` § Day zoom and ADR-017. */
+private fun temporalLabelFor(date: LocalDate): Pair<Int, Int> {
+    val today = LocalDate.now()
+    return when {
+        date.isBefore(today) -> R.string.day_temporal_label_past to TemporalColors.PAST
+        date.isAfter(today) -> R.string.day_temporal_label_future to TemporalColors.FUTURE
+        else -> R.string.day_temporal_label_today to TemporalColors.TODAY
     }
 }
 
@@ -222,5 +259,18 @@ private fun DayContentEmptyPreview() {
             onGroupClick = {},
             onGroupQuickRemove = {},
         )
+    }
+}
+
+/** Dates relative to `now()` so all three temporal-label states render regardless of when this preview is opened. */
+@Preview(showBackground = true)
+@Composable
+private fun CalendarHeaderCardTemporalStatesPreview() {
+    TagDayTheme {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(16.dp)) {
+            CalendarHeaderCard(date = LocalDate.now().minusDays(5))
+            CalendarHeaderCard(date = LocalDate.now())
+            CalendarHeaderCard(date = LocalDate.now().plusDays(5))
+        }
     }
 }

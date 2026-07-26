@@ -1,6 +1,7 @@
 package dev.krfu.tagday.ui.calendar
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,18 +29,25 @@ fun HeatmapDayCell(
     dayOfMonth: Int,
     count: Int,
     tagColor: Int,
+    isToday: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val alpha = alphaForCount(count)
     val backgroundColor = if (alpha == 0f) Color.Transparent else Color(tagColor).copy(alpha = alpha)
+    val shape = RoundedCornerShape(4.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(shape)
             .background(backgroundColor)
+            .let { m ->
+                // A ring rather than a fill, since the background already carries the
+                // heat-shading signal — see ADR-017.
+                if (isToday) m.border(2.dp, MaterialTheme.colorScheme.primary, shape) else m
+            }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

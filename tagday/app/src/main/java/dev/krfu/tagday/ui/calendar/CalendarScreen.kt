@@ -44,6 +44,7 @@ fun CalendarScreen(
         onStepTime = { direction -> viewModel.stepTime(direction) },
         onStepZoom = { direction -> viewModel.stepZoom(direction) },
         onZoomLevelPicked = { zoomLevel -> viewModel.setZoom(zoomLevel) },
+        onJumpToToday = { viewModel.jumpToToday() },
         modifier = modifier,
     )
 

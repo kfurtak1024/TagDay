@@ -407,3 +407,89 @@ tappable. This makes Year→Day a two-step drill-down instead of one, a delibera
 trade-off of Week/Month's established "tap a day, land on Day zoom" convenience for a
 control that's actually usable at Year's density. `UI_UX.md` was updated accordingly —
 Week and Month keep the original one-step rule; Year is now the documented exception.
+
+---
+
+## ADR-017: Jump-to-today scoped to Day zoom; today-indicators tuned per zoom density
+
+**Decision:** Two related additions, both about locating "today" while browsing:
+
+1. A jump-to-today `IconButton` in the shared top bar's `title` slot, next to
+   `ZoomLevelPicker` rather than in the trailing `actions` group — rendered only when
+   `zoomLevel == DAY && focusedDate != LocalDate.now()`. Uses a bullseye icon
+   (`R.drawable.ic_target`, a custom vector — two concentric rings around a solid
+   center dot, no crosshair ticks). It calls a new `CalendarViewModel.jumpToToday()` (sets
+   `focusedDate = LocalDate.now()`, leaves `zoomLevel` untouched — same
+   minimal-mutation contract as `jumpToDay`/`stepTime`). Week/Month/Year get no
+   equivalent button.
+2. A visual "today" indicator at every zoom level instead, each styled to fit what that
+   density already has room for: Day zoom gets a small `TemporalLabel` pill in the
+   header card (see below); Week zoom fills the day-of-month number's background with
+   `colorScheme.primary` (Google Calendar-style); Month zoom draws a `colorScheme.primary`
+   border **ring** around the day cell (a stroke, not a fill, since `HeatmapDayCell`'s
+   background already carries the heat-shading signal — the two need to read as
+   independent layers); Year zoom draws that same border around the **whole month
+   tile**, not an individual day cell.
+
+Separately, Day zoom also gets a **temporal label**: a small rounded pill below the
+weekday name reading "Past"/"Today"/"Future" (`date` vs. `LocalDate.now()`), colored
+gold/`TemporalColors.PAST`, green/`TemporalColors.TODAY`, violet/`TemporalColors.FUTURE`
+respectively — fixed ARGB ints kept outside the Material color scheme, same reasoning as
+`TagPalette` (ADR-011's neighborhood): dynamic color varies per device wallpaper, which
+would make a semantic past/today/future signal unreliable depending on the user's system
+theme. The label's text is folded into the header `Card`'s existing merged
+`contentDescription` rather than left as an unannounced fourth visual-only fragment.
+
+**Alternatives considered:** (1) A jump-to-today button visible at every zoom level,
+consistent with Tags/Settings. (2) A per-day-cell today marker at Year zoom, matching
+Month's ring treatment exactly. (3) `Icons.Default.DateRange` (already available in
+`material-icons-core`) instead of a new custom vector for the jump-to-today icon. (4)
+Placing the jump-to-today button in the trailing `actions` group alongside Tags/Settings
+(where it was first built) rather than in the `title` slot next to `ZoomLevelPicker`.
+(5) A calendar-with-highlighted-date glyph (the standard Material "today" icon) instead
+of a bullseye. (6) A crosshair-style bullseye (the standard Material "gps_fixed" glyph,
+with tick marks radiating past the ring) instead of a plain two-ring-plus-dot bullseye.
+
+**Why:** (1) was rejected per direct product direction: "today" is fundamentally a
+Day-zoom concept in this app's mental model — Week/Month/Year are overview/browsing
+modes where the *destination* of "jump to today" (a specific day, viewed in full detail)
+doesn't exist yet. Those three zooms get a highlight instead, so today's position is
+always visible while browsing, and the existing tap-to-drill-down convention (tap a
+day/month → jump toward Day zoom, per `FEATURES.md`/ADR-016) is what actually gets you
+there — jump-to-today only needs to exist once you're already at Day zoom looking at
+some other date. This also keeps the top bar's chrome from growing on the three zooms
+that already carry the most content (multi-day rows, grids).
+
+(2) was rejected for the same touch-target reasoning ADR-016 already established for
+Year: cells there are ~15–18dp, well under the 48dp minimum, so a per-cell ring would be
+both hard to see and reinforce a false affordance (Year has no per-day tap target at
+all — see ADR-016). A whole-tile border matches the existing whole-tile tap target and
+scales with it.
+
+(3) was rejected for consistency with ADR-010's precedent: `DateRange` reads as
+"calendar/date-range" rather than "today" specifically, and the project's established
+pattern for a missing-but-needed glyph is a one-off hand-added vector
+(`res/drawable/ic_target.xml`, mirroring `ic_label.xml`'s format) rather than reaching
+for a Material icon that's merely adjacent in meaning, or pulling in
+`material-icons-extended` for it.
+
+(4) was reconsidered and reversed after initial implementation, per direct product
+feedback: `actions` groups navigation destinations (Tags, Settings — screens you go
+*to*), while jump-to-today doesn't navigate anywhere, it changes which slice of time the
+*current* screen shows — the same category of control as `ZoomLevelPicker` right next to
+it, not a peer of Tags/Settings. Grouping it with the zoom picker also means its
+conditional appearance never shifts Tags/Settings' position, which placing it at the end
+of `actions` had already achieved incidentally but for the wrong conceptual reason.
+
+(5) was reconsidered and reversed alongside (4): a calendar glyph restates "this is a
+date-related control," which is already obvious from context (it sits right next to the
+zoom picker). A bullseye (`ic_target.xml`) more directly signals the actual action —
+"snap back to a specific point" — and reads as distinct from the calendar/label
+iconography already used elsewhere in the top bar (`ic_label`) and Day zoom's own header.
+
+(6) went through one round of iteration: the crosshair/`gps_fixed` variant shipped
+first, then was swapped for a plainer two-ring-plus-center-dot bullseye (no ticks
+radiating past the outer ring) per direct product feedback. Both read as "target," but
+the crosshair variant carries GPS/location-pin baggage from its original Material
+meaning; the plain-rings version is a more generic bullseye with no borrowed
+association to shed.

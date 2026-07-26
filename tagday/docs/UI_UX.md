@@ -52,7 +52,7 @@ on `CalendarViewModel`'s `zoomLevel` state.
 
 ```
 ┌─────────────────────────────┐
-│  Day ▾               [🏷] [⚙]│  ← top bar: zoom picker (left), Tags + Settings (right)
+│  Day ▾ [⌖]            [🏷] [⚙]│  ← top bar: zoom picker + jump-to-today (left), Tags + Settings (right)
 ├─────────────────────────────┤
 │                               │
 │      (zoom-level content)    │  ← swipe up/down = zoom, left/right = move through time
@@ -62,20 +62,28 @@ on `CalendarViewModel`'s `zoomLevel` state.
 └─────────────────────────────┘
 ```
 
-- **Top bar**: a `TopAppBar` whose `title` slot holds `ZoomLevelPicker` (a `TextButton`
-  showing the current zoom level's name, e.g. "Day", plus a small dropdown chevron) and
-  whose trailing `actions` slot holds two `IconButton`s, in order:
-  1. Tag/label-shaped icon (`R.drawable.ic_label` — a custom vector, since
-     `material-icons-core`'s bundled set has no tag icon and pulling in
-     `material-icons-extended` for one icon isn't worth the APK-size tradeoff while
-     release builds have minification disabled) that navigates to the Tags screen.
+- **Top bar**: a `TopAppBar` whose `title` slot holds a `Row` with `ZoomLevelPicker`
+  (a `TextButton` showing the current zoom level's name, e.g. "Day", plus a small
+  dropdown chevron) followed by a conditional jump-to-today `IconButton` — a bullseye
+  icon (`R.drawable.ic_target`, a custom vector: two concentric rings around a solid
+  center dot, no crosshair ticks; no "today" or target glyph in `material-icons-core`,
+  and pulling in `material-icons-extended` for one icon isn't worth the APK-size
+  tradeoff while release builds have minification disabled), rendered only when
+  `zoomLevel == DAY && focusedDate != today`, calling
+  `CalendarViewModel.jumpToToday()`. It sits next to the zoom picker rather than in the
+  trailing `actions` group — it's a peer of "which slice of time am I looking at,"
+  not a navigation destination like Tags/Settings — see ADR-017 for why it's
+  Day-zoom-only and § Day zoom for its own on-screen indicator.
+
+  The trailing `actions` slot holds two `IconButton`s, always shown at every zoom level,
+  the only way into their respective screens, per § Navigation shell:
+  1. Tag/label-shaped icon (`R.drawable.ic_label` — a custom vector, same rationale as
+     `ic_target` above) that navigates to the Tags screen.
   2. Gear icon (`Icons.Default.Settings` — already in `material-icons-core`, no custom
      vector needed) that navigates to the Settings screen.
 
-  Both are shown at every zoom level, the only way into their respective screens, per
-  § Navigation shell. Settings sits after Tags — established, more-frequently-used
-  destination stays in its existing position; new, currently-empty destination is
-  appended rather than inserted.
+  Settings sits after Tags — established, more-frequently-used destination stays in its
+  existing position; new, currently-empty destination is appended rather than inserted.
 - **Zoom picker**: `ZoomLevelPicker` (`ui/calendar/ZoomLevelPicker.kt`) — tapping it opens
   a `DropdownMenu` listing Day/Week/Month/Year, current entry marked with a leading
   checkmark; picking one calls `CalendarViewModel.setZoom` directly (an absolute setter,
@@ -119,6 +127,7 @@ on `CalendarViewModel`'s `zoomLevel` state.
 │                              │
 │             25               │  ← huge day-of-month number
 │           Saturday            │  ← weekday name
+│            [Today]            │  ← temporal label pill (Past/Today/Future)
 ├─────────────────────────────┤
 │  walk (2)                    │  ← Simple group row
 │  reading                     │  ← Simple group row (single instance, no count)
@@ -145,9 +154,14 @@ on `CalendarViewModel`'s `zoomLevel` state.
   dialog (a fast full-group removal, vs. the row-tap's per-instance editing/removal).
 - **Header**: a `Card` styled like a tear-off desk-calendar page — a top band in
   `colorScheme.primary` with the month and year in small caps, then the day-of-month
-  in `displayLarge`/bold (the dominant element) and the weekday name in `titleLarge`
-  below it. The four fields are exposed to screen readers as one merged node ("Saturday,
-  25 July 2026") rather than four separate fragments.
+  in `displayLarge`/bold (the dominant element), the weekday name in `titleLarge` below
+  it, and a small rounded **temporal label** pill beneath that: "Past"/"Today"/"Future"
+  relative to the device clock, colored gold/green/violet respectively via
+  `TemporalColors` (fixed ARGB ints, deliberately outside the Material color scheme —
+  same rationale as `TagPalette`: dynamic color would make a semantic signal like this
+  unreliable across devices/wallpapers). All five fields are exposed to screen readers
+  as one merged node ("Saturday, 25 July 2026, Today") rather than five separate
+  fragments. See ADR-017.
 
 ### Week zoom
 
@@ -155,6 +169,8 @@ on `CalendarViewModel`'s `zoomLevel` state.
 then a small row of colored dots — **one per distinct tag present that day**, not one
 per instance (a repeated Simple tag still shows a single dot, mirroring how Day zoom
 collapses repeats into `walk (2)`). Tapping a row jumps to that day at Day zoom.
+Today's row gets a filled `colorScheme.primary` circle behind its day-of-month number
+(Google Calendar-style) — see ADR-017.
 
 ### Month / Year zoom
 
@@ -167,7 +183,9 @@ color (`alphaForCount` in `HeatmapDayCell.kt`, shared by both zoom levels).
 
 - **Month**: one weekday-aligned grid of `HeatmapDayCell`s, each showing its
   day-of-month number (leading blank cells align the 1st to its column). Tapping a day
-  cell jumps to that day at Day zoom.
+  cell jumps to that day at Day zoom. Today's cell gets a `colorScheme.primary` border
+  ring — a stroke rather than a fill, since the cell's background already carries the
+  heat-shading signal; the two read as independent layers. See ADR-017.
 - **Year** (`ui/calendar/year/YearContent.kt`): all 12 months at once, as a fixed
   4-row × 3-column grid sized with nested `weight()` modifiers — not `verticalScroll`,
   not `aspectRatio` — so it always fills the available area exactly, with no scrolling
@@ -177,7 +195,10 @@ color (`alphaForCount` in `HeatmapDayCell.kt`, shared by both zoom levels).
   12-months-on-one-screen density). The **whole month tile** is the tap target instead,
   jumping to Month zoom for that month rather than straight to Day zoom — a two-step
   drill-down (Year → tap month → Month → tap day) instead of Month/Week's one-step. See
-  ADR-016 in `DECISIONS.md`.
+  ADR-016 in `DECISIONS.md`. The tile containing the current month gets a
+  `colorScheme.primary` border around the **whole tile** rather than a per-day marker —
+  individual day cells are already too small for a tap target at this density (per
+  ADR-016), so they're too small for a second visual signal too. See ADR-017.
 
 ### Quick-entry tag bar
 

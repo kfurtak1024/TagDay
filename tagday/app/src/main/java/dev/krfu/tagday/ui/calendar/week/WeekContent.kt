@@ -48,9 +48,11 @@ fun WeekContent(
             .fillMaxSize()
             .padding(16.dp),
     ) {
+        val today = LocalDate.now()
         days.forEach { day ->
             WeekDayRow(
                 date = day,
+                isToday = day == today,
                 groups = groupsByDate[day.toEpochDay().toInt()].orEmpty(),
                 onClick = { onDayClick(day) },
             )
@@ -61,6 +63,7 @@ fun WeekContent(
 @Composable
 private fun WeekDayRow(
     date: LocalDate,
+    isToday: Boolean,
     groups: List<TagDisplayGroup>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -74,7 +77,24 @@ private fun WeekDayRow(
     ) {
         Column(modifier = Modifier.width(56.dp)) {
             Text(text = date.format(weekdayFormatter), style = MaterialTheme.typography.labelMedium)
-            Text(text = date.dayOfMonth.toString(), style = MaterialTheme.typography.titleMedium)
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .let { m ->
+                        if (isToday) {
+                            m.clip(CircleShape).background(MaterialTheme.colorScheme.primary)
+                        } else {
+                            m
+                        }
+                    }
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = date.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isToday) MaterialTheme.colorScheme.onPrimary else Color.Unspecified,
+                )
+            }
         }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -92,13 +112,14 @@ private fun WeekDayRow(
     }
 }
 
+/** Uses the current week so the today-highlight is visible whenever this preview is opened. */
 @Preview(showBackground = true)
 @Composable
 private fun WeekContentPreview() {
     TagDayTheme {
-        val monday = CalendarDateRanges.weekRange(LocalDate.of(2026, 7, 22)).start
+        val monday = CalendarDateRanges.weekRange(LocalDate.now()).start
         WeekContent(
-            focusedDate = LocalDate.of(2026, 7, 22),
+            focusedDate = LocalDate.now(),
             groupsByDate = mapOf(
                 monday.toEpochDay().toInt() to listOf(
                     TagDisplayGroup(1, "walk", 0xFF81C784.toInt(), TagType.SIMPLE, emptyList(), "walk"),

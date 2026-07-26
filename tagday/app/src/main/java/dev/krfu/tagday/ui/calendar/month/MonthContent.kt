@@ -71,6 +71,7 @@ internal fun MonthGrid(
     modifier: Modifier = Modifier,
 ) {
     val cells = CalendarDateRanges.monthGridCells(focusedDate)
+    val today = LocalDate.now()
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -97,6 +98,7 @@ internal fun MonthGrid(
                             dayOfMonth = day.dayOfMonth,
                             count = countsByDate[day.toEpochDay().toInt()] ?: 0,
                             tagColor = tagColor,
+                            isToday = day == today,
                             onClick = { onDayClick(day) },
                             modifier = Modifier.weight(1f),
                         )
@@ -108,20 +110,22 @@ internal fun MonthGrid(
     }
 }
 
+/** Uses the current month so the today-ring is visible whenever this preview is opened. */
 @Preview(showBackground = true)
 @Composable
 private fun MonthContentPreview() {
     TagDayTheme {
+        val focusedDate = LocalDate.now()
         MonthContent(
-            focusedDate = LocalDate.of(2026, 7, 22),
+            focusedDate = focusedDate,
             allTags = listOf(
                 Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0),
             ),
             selectedTagId = 1,
             countsByDate = mapOf(
-                LocalDate.of(2026, 7, 3).toEpochDay().toInt() to 1,
-                LocalDate.of(2026, 7, 10).toEpochDay().toInt() to 2,
-                LocalDate.of(2026, 7, 15).toEpochDay().toInt() to 4,
+                focusedDate.withDayOfMonth(3).toEpochDay().toInt() to 1,
+                focusedDate.withDayOfMonth(10).toEpochDay().toInt() to 2,
+                focusedDate.withDayOfMonth(15).toEpochDay().toInt() to 4,
             ),
             onTagPicked = {},
             onDayClick = {},

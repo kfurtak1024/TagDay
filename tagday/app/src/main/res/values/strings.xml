@@ -5,6 +5,7 @@
     <string name="nav_back_content_description">Back</string>
 
     <string name="calendar_settings_content_description">Settings</string>
+    <string name="calendar_jump_to_today_content_description">Jump to today</string>
     <string name="settings_empty_message">Nothing here yet</string>
 
     <string name="tags_search_placeholder">Search tags…</string>
@@ -32,6 +33,9 @@
 
     <string name="day_empty_message">Nothing tagged yet — add one below</string>
     <string name="day_edit_tags_content_description">Edit tags</string>
+    <string name="day_temporal_label_past">Past</string>
+    <string name="day_temporal_label_today">Today</string>
+    <string name="day_temporal_label_future">Future</string>
 
     <string name="calendar_zoom_level_day">Day</string>
     <string name="calendar_zoom_level_week">Week</string>

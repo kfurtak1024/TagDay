@@ -108,6 +108,10 @@ class CalendarViewModel @Inject constructor(
         query.update { it.copy(zoomLevel = ZoomLevel.MONTH, focusedDate = date) }
     }
 
+    fun jumpToToday() {
+        query.update { it.copy(focusedDate = LocalDate.now()) }
+    }
+
     fun selectHeatmapTag(tagId: Long) {
         query.update { it.copy(selectedTagId = tagId) }
     }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -58,6 +60,7 @@ fun CalendarContent(
     onStepTime: (Int) -> Unit,
     onStepZoom: (Int) -> Unit,
     onZoomLevelPicked: (ZoomLevel) -> Unit,
+    onJumpToToday: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Vertical (zoom) is a real `scrollable`, not a raw pointerInput drag, so it can
@@ -94,10 +97,21 @@ fun CalendarContent(
         topBar = {
             TopAppBar(
                 title = {
-                    ZoomLevelPicker(
-                        zoomLevel = uiState.zoomLevel,
-                        onZoomLevelPicked = onZoomLevelPicked,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ZoomLevelPicker(
+                            zoomLevel = uiState.zoomLevel,
+                            onZoomLevelPicked = onZoomLevelPicked,
+                        )
+                        // Day zoom only, and only once actually away from today — see ADR-017.
+                        if (uiState.zoomLevel == ZoomLevel.DAY && uiState.focusedDate != LocalDate.now()) {
+                            IconButton(onClick = onJumpToToday) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(R.drawable.ic_target),
+                                    contentDescription = stringResource(R.string.calendar_jump_to_today_content_description),
+                                )
+                            }
+                        }
+                    }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToTags) {

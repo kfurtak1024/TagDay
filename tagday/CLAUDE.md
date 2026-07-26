@@ -58,13 +58,26 @@ four zoom levels — Day, Week, Month, Year — as one continuous calendar (not 
 screens), with swipe gestures (vertical = zoom level, horizontal = move through time),
 tap-a-day-to-jump-to-Day-zoom (Week/Month) or tap-a-month-to-jump-to-Month-zoom (Year,
 per ADR-016), and a top-bar `ZoomLevelPicker` dropdown for jumping directly to a zoom
-level, per ADR-012 and ADR-014. Day zoom has Simple, Rated, and Valued
-tags with full grouping/aggregation and per-instance editing; adding a tag uses an
-always-visible quick-entry bar (`TagQuickEntryBar`) with syntax-based type inference and
-auto-assigned color (ADR-009). Week is a multi-tag dot overview; Month/Year are a
-single-tag heatmap (instance count only, `TagPickerDropdown`). `TagsScreen`
+level, per ADR-012 and ADR-014. A conditional top-bar icon (`jumpToToday`, ADR-017)
+returns to today from Day zoom only; Week/Month/Year instead highlight today's
+row/cell/tile in place, sized to what each density has room for. Day zoom has Simple,
+Rated, and Valued tags with full grouping/aggregation and per-instance editing, plus a
+small Past/Today/Future label on the header card (`TemporalColors`, ADR-017); adding a
+tag uses an always-visible quick-entry bar (`TagQuickEntryBar`) with syntax-based type
+inference and auto-assigned color (ADR-009). Week is a multi-tag dot overview; Month/Year
+are a single-tag heatmap (instance count only, `TagPickerDropdown`). `TagsScreen`
 (list/filter/rename/recolor/delete, reached via the Calendar screen's top-right icon) is
 management-only, with an in-house HSV color picker (ADR-011). A `SettingsScreen` shell
 also exists (reached via a second top-right icon, next to Tags) — empty placeholder for
-now, scaffolded ahead of any specific content. Next up is M5 (Google Drive backup/restore)
-— see `docs/MILESTONES.md`.
+now, scaffolded ahead of any specific content.
+
+Beyond M0-M4, the project is now in an open-ended **"feature complete"** phase (not
+labeled v1 — that term is reserved for an eventual public Play Store release, which
+isn't currently planned) rather than working straight through the original M5/M6
+milestone list. Polish items (app icon, signing, R8) are deliberately deferred to once
+feature-complete is reached. In-progress/planned for this phase, beyond what's landed:
+a Keep-style delay-delete undo for the capsule "x" and per-instance removal, a local
+JSON export (also intended to double as M5's Drive backup payload format once reached),
+and a UX rework of the quick-entry add-tag control. See `docs/MILESTONES.md` for the
+original M5 (Drive backup)/M6 (polish) milestone content, still relevant but no longer
+strictly next-in-line.

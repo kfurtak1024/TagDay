@@ -1,6 +1,7 @@
 package dev.krfu.tagday.ui.calendar.year
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,6 +84,7 @@ fun YearContent(
                             .fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        val today = LocalDate.now()
                         (1..GRID_COLUMNS).forEach { column ->
                             val month = row * GRID_COLUMNS + column
                             val monthDate = LocalDate.of(focusedDate.year, month, 1)
@@ -90,6 +92,7 @@ fun YearContent(
                                 monthDate = monthDate,
                                 tagColor = selectedTag.color,
                                 countsByDate = countsByDate,
+                                isCurrentMonth = monthDate.year == today.year && monthDate.month == today.month,
                                 onClick = { onMonthClick(monthDate) },
                                 modifier = Modifier
                                     .weight(1f)
@@ -108,6 +111,7 @@ private fun YearMonthTile(
     monthDate: LocalDate,
     tagColor: Int,
     countsByDate: Map<Int, Int>,
+    isCurrentMonth: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -116,10 +120,14 @@ private fun YearMonthTile(
         while (cells.size < WEEKS_PER_TILE) cells.add(List(7) { null })
         cells
     }
+    val shape = RoundedCornerShape(4.dp)
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(shape)
+            // Per-day cells are well under the 48dp touch target at this density (ADR-016),
+            // so the today-indicator lives on the whole tile instead — see ADR-017.
+            .let { m -> if (isCurrentMonth) m.border(1.5.dp, MaterialTheme.colorScheme.primary, shape) else m }
             .clickable(onClick = onClick)
             .semantics { contentDescription = monthDate.format(monthNameFormatter) }
             .padding(4.dp),
@@ -159,20 +167,22 @@ private fun YearMonthTile(
     }
 }
 
+/** Uses the current year so the current-month tile border is visible whenever this preview is opened. */
 @Preview(showBackground = true, heightDp = 700)
 @Composable
 private fun YearContentPreview() {
     TagDayTheme {
+        val focusedDate = LocalDate.now()
         YearContent(
-            focusedDate = LocalDate.of(2026, 7, 22),
+            focusedDate = focusedDate,
             allTags = listOf(
                 Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0),
             ),
             selectedTagId = 1,
             countsByDate = mapOf(
-                LocalDate.of(2026, 1, 3).toEpochDay().toInt() to 1,
-                LocalDate.of(2026, 7, 10).toEpochDay().toInt() to 2,
-                LocalDate.of(2026, 12, 15).toEpochDay().toInt() to 4,
+                LocalDate.of(focusedDate.year, 1, 3).toEpochDay().toInt() to 1,
+                focusedDate.withDayOfMonth(10).toEpochDay().toInt() to 2,
+                LocalDate.of(focusedDate.year, 12, 15).toEpochDay().toInt() to 4,
             ),
             onTagPicked = {},
             onMonthClick = {},
