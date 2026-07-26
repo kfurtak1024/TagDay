@@ -1,7 +1,11 @@
 <resources>
     <string name="app_name">TagDay</string>
     <string name="nav_tags_label">Tags</string>
+    <string name="nav_settings_label">Settings</string>
     <string name="nav_back_content_description">Back</string>
+
+    <string name="calendar_settings_content_description">Settings</string>
+    <string name="settings_empty_message">Nothing here yet</string>
 
     <string name="tags_search_placeholder">Search tags…</string>
     <string name="tags_empty_message">No tags yet</string>

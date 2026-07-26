@@ -2,28 +2,38 @@
 
 Scoped to what **M0-M4** actually need (see `MILESTONES.md`): the navigation shell, the
 Calendar screen (all four zoom levels, all three tag types), and the Tags management
-screen. Drive backup UI is specced when M5 arrives — don't design ahead of it.
+screen. The Settings screen was scaffolded early (empty, ahead of any specific
+milestone) so it exists as a destination for later work to land in — see § Settings
+screen. Its actual content, including Drive backup UI, is specced when M5 arrives —
+don't design ahead of that.
 
 ## Navigation shell
 
 No bottom navigation bar — Calendar (`CalendarScreen`) is the sole start destination and
-the app's primary surface. Tags is reached via a small icon in the top-right corner of
-the Calendar screen (shared across all four zoom levels, see § Calendar screen below)
-and returned from via its own back arrow, i.e. it's a screen you navigate *into* and
-back out of, not a peer tab.
+the app's primary surface. Tags and Settings are each reached via a small icon in the
+top-right corner of the Calendar screen (shared across all four zoom levels, see
+§ Calendar screen below) and returned from via their own back arrow, i.e. they're
+screens you navigate *into* and back out of, not peer tabs.
 
 | Destination | Route | Content |
 |---|---|---|
 | Calendar | `calendar` | `CalendarScreen` — Day/Week/Month/Year, one continuous calendar, start destination |
 | Tags | `tags` | `TagsScreen` — list/filter/rename/recolor/delete, pushed on top of Calendar |
+| Settings | `settings` | `SettingsScreen` — empty placeholder for now, pushed on top of Calendar |
 
 ```kotlin
 NavHost(navController, startDestination = "calendar") {
     composable("calendar") {
-        CalendarScreen(onNavigateToTags = { navController.navigate("tags") })
+        CalendarScreen(
+            onNavigateToTags = { navController.navigate("tags") },
+            onNavigateToSettings = { navController.navigate("settings") },
+        )
     }
     composable("tags") {
         TagsScreen(onNavigateBack = { navController.popBackStack() })
+    }
+    composable("settings") {
+        SettingsScreen(onNavigateBack = { navController.popBackStack() })
     }
 }
 ```
@@ -42,7 +52,7 @@ on `CalendarViewModel`'s `zoomLevel` state.
 
 ```
 ┌─────────────────────────────┐
-│  Day ▾                  [🏷]  │  ← top bar: zoom picker (left), Tags icon (right)
+│  Day ▾               [🏷] [⚙]│  ← top bar: zoom picker (left), Tags + Settings (right)
 ├─────────────────────────────┤
 │                               │
 │      (zoom-level content)    │  ← swipe up/down = zoom, left/right = move through time
@@ -54,12 +64,18 @@ on `CalendarViewModel`'s `zoomLevel` state.
 
 - **Top bar**: a `TopAppBar` whose `title` slot holds `ZoomLevelPicker` (a `TextButton`
   showing the current zoom level's name, e.g. "Day", plus a small dropdown chevron) and
-  whose trailing `actions` slot holds a single `IconButton` (tag/label-shaped icon,
-  `R.drawable.ic_label` — a custom vector, since `material-icons-core`'s bundled set has
-  no tag icon and pulling in `material-icons-extended` for one icon isn't worth the
-  APK-size tradeoff while release builds have minification disabled) that navigates to
-  the Tags screen — shown at every zoom level, the only way into Tags, per § Navigation
-  shell.
+  whose trailing `actions` slot holds two `IconButton`s, in order:
+  1. Tag/label-shaped icon (`R.drawable.ic_label` — a custom vector, since
+     `material-icons-core`'s bundled set has no tag icon and pulling in
+     `material-icons-extended` for one icon isn't worth the APK-size tradeoff while
+     release builds have minification disabled) that navigates to the Tags screen.
+  2. Gear icon (`Icons.Default.Settings` — already in `material-icons-core`, no custom
+     vector needed) that navigates to the Settings screen.
+
+  Both are shown at every zoom level, the only way into their respective screens, per
+  § Navigation shell. Settings sits after Tags — established, more-frequently-used
+  destination stays in its existing position; new, currently-empty destination is
+  appended rather than inserted.
 - **Zoom picker**: `ZoomLevelPicker` (`ui/calendar/ZoomLevelPicker.kt`) — tapping it opens
   a `DropdownMenu` listing Day/Week/Month/Year, current entry marked with a leading
   checkmark; picking one calls `CalendarViewModel.setZoom` directly (an absolute setter,
@@ -265,6 +281,17 @@ here; creation stays exclusively in the Calendar screen's Day-zoom quick-entry b
 - **No tags in the repository yet**: "No tags yet" centered message.
 - **No tags match the filter**: "No tags match '<query>'" — distinct from the
   fully-empty case so it's clear the repository isn't actually empty.
+
+## Settings screen
+
+Empty placeholder, scaffolded ahead of any specific content — reached via the gear icon
+in the Calendar screen's top bar (§ Calendar screen), returned from via its own back
+arrow, same pattern as Tags. `SettingsScreen` (`ui/settings/SettingsScreen.kt`) has no
+`ViewModel` yet (nothing to hold state for) and delegates straight to stateless
+`SettingsContent`: a `TopAppBar` titled "Settings" with a back arrow, and a centered
+"Nothing here yet" message in place of content. What eventually lives here — Drive
+backup/restore controls, theming options, or something else — is undecided and explicitly
+not scoped by this doc; don't design ahead of it.
 
 ## Theming
 

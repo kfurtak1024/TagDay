@@ -64,5 +64,7 @@ always-visible quick-entry bar (`TagQuickEntryBar`) with syntax-based type infer
 auto-assigned color (ADR-009). Week is a multi-tag dot overview; Month/Year are a
 single-tag heatmap (instance count only, `TagPickerDropdown`). `TagsScreen`
 (list/filter/rename/recolor/delete, reached via the Calendar screen's top-right icon) is
-management-only, with an in-house HSV color picker (ADR-011). Next up is M5 (Google
-Drive backup/restore) — see `docs/MILESTONES.md`.
+management-only, with an in-house HSV color picker (ADR-011). A `SettingsScreen` shell
+also exists (reached via a second top-right icon, next to Tags) — empty placeholder for
+now, scaffolded ahead of any specific content. Next up is M5 (Google Drive backup/restore)
+— see `docs/MILESTONES.md`.

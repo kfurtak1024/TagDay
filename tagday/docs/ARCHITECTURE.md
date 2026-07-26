@@ -92,7 +92,9 @@ dev.krfu.tagday/
     │   ├── month/     # MonthContent (+ MonthGrid, reused by year/)
     │   └── year/      # YearContent
     ├── tags/          # TagsScreen, TagsViewModel
-    ├── backup/        # settings-adjacent screen for manual export/import
+    ├── settings/      # SettingsScreen — empty placeholder for now, see UI_UX.md
+    ├── backup/        # manual export/import UI — not yet built; may end up living
+    │                  # under settings/ instead of its own package, undecided (M5)
     ├── navigation/     # NavHost, nav graph
     └── theme/         # Material 3 theme, color palette
 ```

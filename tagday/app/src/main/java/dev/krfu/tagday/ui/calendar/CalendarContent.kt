@@ -12,6 +12,8 @@ import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +47,7 @@ private const val SWIPE_THRESHOLD_PX = 80f
 fun CalendarContent(
     uiState: CalendarUiState,
     onNavigateToTags: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onAddExistingTag: (tagId: Long) -> Unit,
     onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
     onGroupClick: (TagDisplayGroup) -> Unit,
@@ -58,13 +61,14 @@ fun CalendarContent(
     modifier: Modifier = Modifier,
 ) {
     // Vertical (zoom) is a real `scrollable`, not a raw pointerInput drag, so it can
-    // properly negotiate with Day's tag list / Year's stacked month grids, which are
-    // themselves `scrollable` (via `verticalScroll`): a nested `scrollable` only ever
-    // grabs the *leftover* delta its descendant didn't consume (Modifier.scrollable's
-    // built-in nested-scroll participation hooks onPostScroll/onPostFling, never
-    // onPreScroll) — so the tag list/month grids still scroll normally first, and only
-    // once they're out of room (or on zoom levels with nothing scrollable at all, e.g.
-    // Week/Month) does the remaining drag reach this zoom-swipe tracking. See ADR-012.
+    // properly negotiate with Day's tag list, which is itself `scrollable` (via
+    // `verticalScroll`): a nested `scrollable` only ever grabs the *leftover* delta its
+    // descendant didn't consume (Modifier.scrollable's built-in nested-scroll
+    // participation hooks onPostScroll/onPostFling, never onPreScroll) — so the tag list
+    // still scrolls normally first, and only once it's out of room (or on zoom levels
+    // with nothing scrollable at all, e.g. Week/Month/Year — see ADR-016 for Year's
+    // fixed, no-scroll grid) does the remaining drag reach this zoom-swipe tracking.
+    // See ADR-012.
     //
     // Horizontal and vertical are two independent detection mechanisms (raw pointerInput
     // vs. scrollable), so an imprecise diagonal swipe could otherwise cross both
@@ -100,6 +104,12 @@ fun CalendarContent(
                         Icon(
                             imageVector = ImageVector.vectorResource(R.drawable.ic_label),
                             contentDescription = stringResource(R.string.day_edit_tags_content_description),
+                        )
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.calendar_settings_content_description),
                         )
                     }
                 },

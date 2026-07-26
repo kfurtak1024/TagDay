@@ -14,6 +14,7 @@ import dev.krfu.tagday.ui.calendar.day.InstanceListSheet
 @Composable
 fun CalendarScreen(
     onNavigateToTags: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: CalendarViewModel = hiltViewModel(),
 ) {
@@ -32,6 +33,7 @@ fun CalendarScreen(
     CalendarContent(
         uiState = uiState,
         onNavigateToTags = onNavigateToTags,
+        onNavigateToSettings = onNavigateToSettings,
         onAddExistingTag = { tagId -> viewModel.addExistingTag(tagId) },
         onCreateTag = { name, type, rating, value -> viewModel.createTagAndAdd(name, type, rating, value) },
         onGroupClick = { group -> selectedGroupKey = group.tagId },

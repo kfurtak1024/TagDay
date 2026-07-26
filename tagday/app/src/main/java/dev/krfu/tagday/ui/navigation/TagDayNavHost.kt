@@ -6,6 +6,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import dev.krfu.tagday.ui.calendar.CalendarScreen
+import dev.krfu.tagday.ui.settings.SettingsScreen
 import dev.krfu.tagday.ui.tags.TagsScreen
 
 @Composable
@@ -19,10 +20,16 @@ fun TagDayNavHost(
         modifier = modifier,
     ) {
         composable(TagDayDestination.CALENDAR.route) {
-            CalendarScreen(onNavigateToTags = { navController.navigate(TagDayDestination.TAGS.route) })
+            CalendarScreen(
+                onNavigateToTags = { navController.navigate(TagDayDestination.TAGS.route) },
+                onNavigateToSettings = { navController.navigate(TagDayDestination.SETTINGS.route) },
+            )
         }
         composable(TagDayDestination.TAGS.route) {
             TagsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+        composable(TagDayDestination.SETTINGS.route) {
+            SettingsScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
