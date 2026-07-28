@@ -154,8 +154,7 @@ interface TagInstanceDao {
 
     @Insert suspend fun insert(instance: TagInstance): Long
     @Update suspend fun update(instance: TagInstance)
-    @Delete suspend fun delete(instance: TagInstance)
-    @Delete suspend fun deleteAll(instances: List<TagInstance>) // capsule "x" — whole group at once
+    @Delete suspend fun deleteAll(instances: List<TagInstance>) // capsule "x" (whole group) or a single instance — see ADR-019
 }
 ```
 

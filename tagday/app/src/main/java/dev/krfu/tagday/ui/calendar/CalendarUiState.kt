@@ -10,4 +10,5 @@ data class CalendarUiState(
     val selectedTagId: Long? = null,
     val allTags: List<Tag> = emptyList(),
     val periodData: CalendarPeriodData = CalendarPeriodData.Day(emptyList()),
+    val pendingRemoval: PendingRemoval? = null,
 )

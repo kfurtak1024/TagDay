@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -25,7 +26,6 @@ import dev.krfu.tagday.ui.theme.TagDayTheme
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle
-import java.util.Locale
 
 @Composable
 fun MonthContent(
@@ -72,6 +72,7 @@ internal fun MonthGrid(
 ) {
     val cells = CalendarDateRanges.monthGridCells(focusedDate)
     val today = LocalDate.now()
+    val locale = LocalLocale.current.platformLocale
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -82,7 +83,7 @@ internal fun MonthGrid(
             DayOfWeek.entries.forEach { dayOfWeek ->
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text(
-                        text = dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                        text = dayOfWeek.getDisplayName(TextStyle.NARROW, locale),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }

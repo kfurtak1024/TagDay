@@ -493,3 +493,112 @@ radiating past the outer ring) per direct product feedback. Both read as "target
 the crosshair variant carries GPS/location-pin baggage from its original Material
 meaning; the plain-rings version is a more generic bullseye with no borrowed
 association to shed.
+
+---
+
+## ADR-018: Day-zoom instance-edit sheet restricted to Rated/Valued tags
+
+**Decision:** `TagGroupCapsule`'s tap target (`onCapsuleClick`, opening
+`InstanceListSheet`) is now `enabled = type != TagType.SIMPLE`. Tapping a Simple
+capsule does nothing; the sheet only ever opens for Rated or Valued groups. Simple's
+only removal path remains the capsule's inline "x" (whole-group, all instances for that
+day, no confirmation — unchanged from before).
+
+**Alternatives considered:** (1) Leave the sheet reachable for Simple groups too
+(today's behavior — tapping `walk (2)` opens a sheet listing two timestamped rows, each
+with a delete icon, but nothing to edit). (2) Keep Simple tappable but make the sheet a
+no-op/empty state for it. (3) Add per-instance removal for Simple some other way (e.g. a
+long-press) instead of removing the capability outright.
+
+**Why:** (1) is what M3 originally shipped, but it doesn't hold up against Simple's own
+definition in `FEATURES.md` § Tag types — "name only (presence/absence)." A Simple
+instance carries no rating, no value, nothing to set; the sheet's only content for it was
+ever a timestamp and a delete button, i.e. a fancier, slower path to the same outcome the
+capsule "x" already provides in one tap. Keeping it around cost a tap (open sheet, find
+the row, tap delete, dismiss sheet) for zero benefit over "tap x." (2) was rejected as
+pure overhead — an empty/degenerate sheet is a UI state to build and reason about for a
+capability nobody needs. (3) was rejected as unrequested scope: per-instance removal for
+Simple (peeling off one of two `walk` instances rather than clearing both) has never come
+up as a need, and the app already has a fast, obvious "remove all of today's `walk`" path;
+if per-instance Simple removal is ever actually wanted, it can be added deliberately
+later rather than preserved by default now. Net effect: Simple stays a pure
+presence/absence marker end to end — logged via the quick-entry bar, cleared via the
+capsule "x," never opening an editor that has nothing to show it.
+
+---
+
+## ADR-019: Keep-style delay-delete undo for Day-zoom removals
+
+**Decision:** Both Day-zoom removal paths — the capsule "x" (whole-group,
+`CalendarViewModel.removeGroup`) and the instance-list sheet's per-instance delete
+(`removeInstance`) — now go through a **delay-delete** flow instead of deleting
+immediately:
+
+1. The tapped instance(s) are held in a single `PendingRemoval(instances, tagName)`
+   (`ui/calendar/PendingRemoval.kt`) in a new `CalendarViewModel` field, and *not* yet
+   sent to the repository.
+2. `CalendarViewModel.uiState`'s Day `periodData` is derived by filtering the repository's
+   groups against whatever's in `PendingRemoval` (`TagDisplayGroup.excludingInstances`,
+   `data/model/TagDisplayGroup.kt`) — so the removed instance(s) disappear from the Day
+   list immediately, optimistically, even though the row is still in Room untouched.
+   A group that becomes empty after filtering is dropped from the list entirely, same as
+   today's real-delete behavior (and the existing "close the sheet once its group is
+   gone" `LaunchedEffect` in `CalendarScreen` keeps working unmodified, since it already
+   reacts to the filtered list).
+3. `CalendarContent` shows a `Snackbar` ("'\<tagName\>' removed", action "Undo") for
+   `SnackbarDuration.Short`, driven by a `LaunchedEffect(uiState.pendingRemoval)` — no
+   separate `Channel`/one-shot-event plumbing (see alternatives). Tapping **Undo**
+   (`SnackbarResult.ActionPerformed`) calls `CalendarViewModel.undoRemoval()`, which just
+   clears the pending state — nothing was ever deleted, so "undo" is a no-op against the
+   repository. Any other resolution (timeout, swipe-to-dismiss) calls
+   `commitPendingRemoval()`, which performs the real `tagInstanceRepository.removeInstances(...)`
+   call the delete would have done immediately before.
+4. **Single pending slot, not a queue.** Starting a *new* removal while one is already
+   pending commits the old one immediately (synchronously, before the new pending state
+   is set) rather than stacking a second snackbar. At most one removal is ever "in
+   flight" awaiting undo.
+5. The now-redundant singular `TagInstanceRepository.removeInstance`/
+   `TagInstanceDao.delete(instance)` were deleted — every removal, single-instance or
+   whole-group, now funnels through `removeInstances`/`deleteAll`.
+
+This resolves the "Considered: Undo snackbar for the capsule 'x'" open note that's been
+sitting in `UI_UX.md` since ADR-009-era work, extending it to the instance-list sheet's
+per-instance delete too, per direct product direction.
+
+**Alternatives considered:** (1) Delete immediately, cache the removed rows client-side
+for restore-on-undo (the "immediate delete + re-insert" variant `UI_UX.md`'s open note
+raised as one option). (2) A queue of independent pending removals, each with its own
+snackbar and timer, so unrelated deletes don't stomp on each other. (3) A dedicated
+`Channel<UndoEvent>` one-shot-event stream (the pattern `ARCHITECTURE.md`/`CONVENTIONS.md`
+already carve out an exception for) instead of keying a `LaunchedEffect` off
+`uiState.pendingRemoval` directly. (4) Extend the same delay-delete treatment to the Tags
+screen's tag deletion. (5) A custom fixed delay (e.g. a raw `delay(4000)` + `Job`) instead
+of `SnackbarHostState.showSnackbar`'s built-in duration/result handling.
+
+**Why:** (1) was rejected because it re-introduces exactly the race the delay-delete
+model avoids for free: a real delete followed by a real re-insert means the "undone"
+instance gets a new row id, new `createdAt` if reconstructed carelessly, and a window
+where the data is genuinely gone (crash between delete and undo loses it for good).
+Deferring the real delete until the snackbar actually resolves means undo is always
+exact and free, and the worst-case failure mode (process death mid-timer) is "the
+delete silently doesn't happen," which is the safe direction to fail in. (2) was
+rejected as unneeded complexity for a single-developer, mostly-single-action-at-a-time
+app — Gmail/Keep's own undo bars behave the same way (a new delete flushes the old
+snackbar), and users don't generally fire off multiple unrelated deletes within the same
+4-second window; if that changes, a queue is a contained follow-up, not a foundation
+that needs to be right on day one. (3) was rejected because the `PendingRemoval` state
+already has to live in `uiState` for the optimistic-filtering step (point 2 above) — a
+parallel `Channel` would duplicate that same information in a second place with its own
+timing, risking the two disagreeing (e.g. the channel event fires but the filtered list
+hasn't recomposed yet, or vice versa). Keying a plain `LaunchedEffect` off the existing
+state field gets the same "fires once per new value, cancels/replaces on the next" behavior
+`Channel` would give here, with one source of truth instead of two. (4) was rejected per
+`UI_UX.md`'s existing framing: Tags-screen deletion is a whole-tag, all-days, cascading
+removal gated by a confirmation dialog specifically *because* it's higher-stakes and
+harder to walk back informally than a single day's instances — a confirmation dialog and
+a delay-delete snackbar are two different answers to "how do we prevent an accidental
+destructive action," and the Tags screen already committed to the dialog answer; stacking
+both would be redundant. (5) was rejected because `SnackbarHostState.showSnackbar` already
+gives duration handling (including automatic extension for accessibility services, e.g.
+TalkBack) and a typed result (`ActionPerformed` vs. `Dismissed`) for free — a hand-rolled
+`Job` + `delay()` would have to reimplement both without the a11y awareness.

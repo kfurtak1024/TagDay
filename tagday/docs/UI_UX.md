@@ -141,17 +141,29 @@ on `CalendarViewModel`'s `zoomLevel` state.
   + count), Valued (per-value list with per-value counts). A Rated group with no rated
   instances yet (freshly added, unrated) displays like a Simple group until an instance
   is rated — see ADR-008 in `DECISIONS.md`.
-- **Tap a row** → opens a bottom sheet listing the individual instances behind that
-  group, each independently editable and removable (per the resolved "manage individual
-  instances" decision in `FEATURES.md`). Simple instances show a plain timestamp with a
-  delete icon; Rated instances show an editable 1–5 `StarInput` (tap a star to set/change
-  that instance's rating, at any time — no requirement to rate at creation); Valued
-  instances show an editable text field for that instance's value. All three keep the
-  delete icon.
+- **Tap a row** → for **Rated or Valued** groups only, opens a bottom sheet listing the
+  individual instances behind that group, each independently editable and removable (per
+  the resolved "manage individual instances" decision in `FEATURES.md`). Rated instances
+  show an editable 1–5 `StarInput` (tap a star to set/change that instance's rating, at
+  any time — no requirement to rate at creation); Valued instances show an editable text
+  field for that instance's value. Both keep a delete icon per instance. **Simple**
+  capsules don't respond to a tap at all (`TagGroupCapsule`'s `clickable` is
+  `enabled = type != SIMPLE`) — there's no per-instance state to edit, only presence, so
+  the sheet would have nothing to offer beyond what the "x" below already does. See
+  ADR-018.
 - **Capsule "x"**: each group's capsule also has its own inline "x" (`TagGroupCapsule` in
   `DayContent.kt`), separate from the row-tap above — tapping it removes *all* of that
-  tag's instances for the day immediately, regardless of count, with no confirmation
-  dialog (a fast full-group removal, vs. the row-tap's per-instance editing/removal).
+  tag's instances for the day, regardless of count, with no confirmation dialog (a fast
+  full-group removal, vs. the row-tap's per-instance editing/removal).
+- **Undo**: neither the capsule "x" nor the row-tap sheet's per-instance delete deletes
+  immediately — both are delay-delete (`CalendarViewModel`'s `PendingRemoval`, ADR-019).
+  The item disappears from the Day list right away (an optimistic client-side filter,
+  `TagDisplayGroup.excludingInstances`), and a `Snackbar` ("'\<tag\>' removed", "Undo")
+  appears at the bottom of the screen. Tapping **Undo** restores it (nothing was ever
+  deleted); leaving the snackbar to time out (`SnackbarDuration.Short`, ~4s) or
+  dismissing it commits the deletion. Only one removal is ever pending at a time —
+  removing something else while a snackbar is still showing commits the first one
+  immediately rather than queuing a second snackbar.
 - **Header**: a `Card` styled like a tear-off desk-calendar page — a top band in
   `colorScheme.primary` with the month and year in small caps, then the day-of-month
   in `displayLarge`/bold (the dominant element), the weekday name in `titleLarge` below
@@ -327,17 +339,10 @@ not scoped by this doc; don't design ahead of it.
 
 - **M5** adds a Drive backup/restore entry point — likely a simple settings-style
   screen reachable from somewhere in the nav shell (exact placement TBD when reached).
-- **Considered: Undo snackbar for the capsule "x"** (Keep-style) — instead of (or
-  alongside) today's immediate, no-confirmation removal, show a transient snackbar with
-  an "Undo" action after tapping a capsule's "x". Not decided, not scheduled to a
-  milestone; parking the tradeoffs here for whenever it's revisited:
-  - **Pros**: matches this app's existing lightweight-interaction style better than a
-    confirmation dialog would (no modal on every removal, just a safety net for the rare
-    mistake); familiar pattern.
-  - **Cons**: a snackbar auto-dismisses (~4-10s) — easy to miss, giving false confidence
-    that removal is "safe"; needs real state handling (defer the actual delete until
-    the snackbar dismisses, or delete immediately and cache the removed rows for
-    restore); needs to coexist visually with the quick-entry bar already pinned to the
-    bottom of this screen (the same class of layout issue as the suggestion-list overlap
-    bug); and scope is undecided — capsule "x" only, or also the per-instance delete in
-    `InstanceListSheet`.
+- ~~**Considered: Undo snackbar for the capsule "x"**~~ — resolved, see § Day zoom
+  above and ADR-019: both the capsule "x" and the instance-list sheet's per-instance
+  delete now go through a delay-delete snackbar. The Scaffold's `snackbarHost` slot
+  positions it above `bottomBar` automatically, so it wasn't expected to collide with
+  the quick-entry bar, but this hasn't been confirmed on a running device/emulator (none
+  available in this working environment — see `TESTING.md`); worth a quick look next
+  time this screen is run on a device.

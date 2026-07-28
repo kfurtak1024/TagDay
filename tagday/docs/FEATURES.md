@@ -128,12 +128,17 @@ Management screen for the tag repository.
   of the view; Week zoom keeps the multi-tag chip/dot style.
 - **Instance type mutability**: not applicable — type lives on the tag, fixed at creation
   and immutable. To use a tag concept differently, create a new tag with a different name.
-- **Managing individual instances**: tapping a tag's group (e.g. the Valued group
-  `movie: [dune, terminator]`) shows an editable list of the individual instances —
-  each instance can be edited or removed independently. Removing the last instance in a
-  group simply removes that instance, and the group disappears from the day's display
-  once empty.
+- **Managing individual instances**: tapping a **Rated or Valued** tag's group (e.g. the
+  Valued group `movie: [dune, terminator]`) shows an editable list of the individual
+  instances — each instance can be edited or removed independently. Removing the last
+  instance in a group simply removes that instance, and the group disappears from the
+  day's display once empty. **Simple** groups have nothing to edit (presence/absence
+  only) and don't respond to a tap at all — removal is whole-group only, via the "x"
+  below (ADR-018).
 - **Quick-removing a whole group**: each group's capsule also has an inline "x" that
   removes *all* of that tag's instances for the day in one tap, regardless of count
   (`walk (2)` → tap → gone entirely) — a fast path for "I didn't mean to tag this today
   at all," distinct from the instance list's per-instance editing/removal above.
+- **Undo**: both removal paths above (capsule "x" and the instance list's per-instance
+  delete) are delay-delete — the item disappears immediately, but a snackbar with an
+  "Undo" action holds the actual deletion for a few seconds first. See ADR-019.

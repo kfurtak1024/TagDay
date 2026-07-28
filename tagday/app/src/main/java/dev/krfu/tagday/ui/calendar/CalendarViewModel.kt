@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
+import dev.krfu.tagday.data.model.TagDisplayGroups.excludingInstances
 import dev.krfu.tagday.data.repository.TagInstanceRepository
 import dev.krfu.tagday.data.repository.TagRepository
 import dev.krfu.tagday.ui.theme.TagPalette
@@ -40,18 +41,25 @@ class CalendarViewModel @Inject constructor(
 ) : ViewModel() {
     private val query = MutableStateFlow(CalendarQuery(ZoomLevel.DAY, LocalDate.now(), null))
 
+    // Delay-delete undo for Day-zoom removals (capsule "x", instance-list sheet's
+    // per-instance delete) — see ADR-019. At most one removal is ever pending: starting a
+    // new one commits whichever was already pending first (see beginPendingRemoval).
+    private val pendingRemoval = MutableStateFlow<PendingRemoval?>(null)
+
     val uiState: StateFlow<CalendarUiState> = combine(
         query,
         query.flatMapLatest { periodDataFlow(it) },
         tagRepository.observeAll(),
-    ) { q, periodData, allTags ->
+        pendingRemoval,
+    ) { q, periodData, allTags, pending ->
         CalendarUiState(
             isLoading = false,
             zoomLevel = q.zoomLevel,
             focusedDate = q.focusedDate,
             selectedTagId = q.selectedTagId,
             allTags = allTags,
-            periodData = periodData,
+            periodData = periodData.withPendingRemovalApplied(pending),
+            pendingRemoval = pending,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
 
@@ -136,15 +144,38 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    fun removeInstance(instance: TagInstance) {
-        viewModelScope.launch {
-            tagInstanceRepository.removeInstance(instance)
-        }
+    /** Instance-list sheet's per-instance delete — see ADR-019. */
+    fun removeInstance(instance: TagInstance, tagName: String) {
+        beginPendingRemoval(listOf(instance), tagName)
     }
 
+    /** Capsule "x" — whole group at once, see ADR-019. */
     fun removeGroup(group: TagDisplayGroup) {
+        beginPendingRemoval(group.instances, group.tagName)
+    }
+
+    private fun beginPendingRemoval(instances: List<TagInstance>, tagName: String) {
+        // Only one removal is ever pending — flush whatever was already waiting on its
+        // own undo window before starting the new one, rather than stacking snackbars.
+        commitPendingRemoval()
+        pendingRemoval.value = PendingRemoval(instances, tagName)
+    }
+
+    fun undoRemoval() {
+        pendingRemoval.value = null
+    }
+
+    fun commitPendingRemoval() {
+        val pending = pendingRemoval.value ?: return
+        pendingRemoval.value = null
         viewModelScope.launch {
-            tagInstanceRepository.removeInstances(group.instances)
+            tagInstanceRepository.removeInstances(pending.instances)
         }
     }
+}
+
+private fun CalendarPeriodData.withPendingRemovalApplied(pending: PendingRemoval?): CalendarPeriodData {
+    if (pending == null || this !is CalendarPeriodData.Day) return this
+    val excludedIds = pending.instances.map { it.id }.toSet()
+    return CalendarPeriodData.Day(groups.excludingInstances(excludedIds))
 }

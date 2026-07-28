@@ -3,12 +3,11 @@ package dev.krfu.tagday.data.repository
 import dev.krfu.tagday.data.local.TagInstanceDao
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagInstanceWithTag
-import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
+import dev.krfu.tagday.data.model.TagDisplayGroups
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
-import kotlin.math.roundToInt
 
 class TagInstanceRepositoryImpl @Inject constructor(
     private val tagInstanceDao: TagInstanceDao,
@@ -42,10 +41,6 @@ class TagInstanceRepositoryImpl @Inject constructor(
         tagInstanceDao.update(instance)
     }
 
-    override suspend fun removeInstance(instance: TagInstance) {
-        tagInstanceDao.delete(instance)
-    }
-
     override suspend fun removeInstances(instances: List<TagInstance>) {
         tagInstanceDao.deleteAll(instances)
     }
@@ -63,31 +58,7 @@ private fun List<TagInstanceWithTag>.toDisplayGroups(): List<TagDisplayGroup> =
                 color = tag.color,
                 type = tag.type,
                 instances = instances,
-                summary = instances.summarize(tag.name, tag.type),
+                summary = TagDisplayGroups.summarize(instances, tag.name, tag.type),
             )
         }
         .sortedBy { it.tagName.lowercase() }
-
-private fun List<TagInstance>.summarize(name: String, type: TagType): String = when (type) {
-    TagType.SIMPLE -> if (size > 1) "$name ($size)" else name
-
-    TagType.RATED -> {
-        val rated = mapNotNull { it.rating }
-        // Instances are created unrated and rated later (DATA_MODEL.md § TagInstance) — a
-        // group can be entirely unrated, so it summarizes like Simple until rated (ADR-008).
-        if (rated.isEmpty()) {
-            if (size > 1) "$name ($size)" else name
-        } else {
-            val stars = "★".repeat(rated.average().roundToInt().coerceIn(0, 5))
-            if (size > 1) "$name: $stars ($size)" else "$name: $stars"
-        }
-    }
-
-    TagType.VALUED -> {
-        val counts = mapNotNull { it.value }.groupingBy { it }.eachCount()
-        val values = counts.entries.joinToString(", ") { (value, count) ->
-            if (count > 1) "$value ($count)" else value
-        }
-        "$name: [$values]"
-    }
-}

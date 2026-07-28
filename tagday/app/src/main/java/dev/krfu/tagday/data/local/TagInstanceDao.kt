@@ -32,8 +32,5 @@ interface TagInstanceDao {
     suspend fun update(instance: TagInstance)
 
     @Delete
-    suspend fun delete(instance: TagInstance)
-
-    @Delete
     suspend fun deleteAll(instances: List<TagInstance>)
 }

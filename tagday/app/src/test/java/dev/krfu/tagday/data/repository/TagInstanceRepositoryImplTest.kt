@@ -25,7 +25,6 @@ class TagInstanceRepositoryImplTest {
                 flowOf(tagRangeInstances)
             override suspend fun insert(instance: TagInstance): Long = throw NotImplementedError()
             override suspend fun update(instance: TagInstance) = throw NotImplementedError()
-            override suspend fun delete(instance: TagInstance) = throw NotImplementedError()
             override suspend fun deleteAll(instances: List<TagInstance>) = throw NotImplementedError()
         }
         return TagInstanceRepositoryImpl(dao)

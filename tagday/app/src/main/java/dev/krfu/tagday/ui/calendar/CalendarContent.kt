@@ -19,8 +19,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +59,8 @@ fun CalendarContent(
     onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
     onGroupClick: (TagDisplayGroup) -> Unit,
     onGroupQuickRemove: (TagDisplayGroup) -> Unit,
+    onUndoRemoval: () -> Unit,
+    onCommitPendingRemoval: () -> Unit,
     onDayClick: (LocalDate) -> Unit,
     onMonthClick: (LocalDate) -> Unit,
     onTagPicked: (Long) -> Unit,
@@ -92,8 +99,30 @@ fun CalendarContent(
         delta
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val undoActionLabel = stringResource(R.string.day_undo_snackbar_action)
+    val undoMessage = uiState.pendingRemoval?.let {
+        stringResource(R.string.day_undo_snackbar_message, it.tagName)
+    }
+    // Keyed on the pending removal itself (not just "is one pending"), so starting a new
+    // removal while one is already showing cancels this coroutine — which dismisses the
+    // stale snackbar — rather than leaving it to resolve on its own. See ADR-019.
+    LaunchedEffect(uiState.pendingRemoval) {
+        if (undoMessage == null) return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = undoMessage,
+            actionLabel = undoActionLabel,
+            // Explicit: showSnackbar defaults to Indefinite whenever actionLabel is
+            // non-null, but delay-delete needs the commit to actually fire on its own
+            // after a few seconds of inaction, not sit there forever. See ADR-019.
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) onUndoRemoval() else onCommitPendingRemoval()
+    }
+
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {

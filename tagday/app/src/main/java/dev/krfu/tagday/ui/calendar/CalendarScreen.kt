@@ -38,6 +38,8 @@ fun CalendarScreen(
         onCreateTag = { name, type, rating, value -> viewModel.createTagAndAdd(name, type, rating, value) },
         onGroupClick = { group -> selectedGroupKey = group.tagId },
         onGroupQuickRemove = { group -> viewModel.removeGroup(group) },
+        onUndoRemoval = { viewModel.undoRemoval() },
+        onCommitPendingRemoval = { viewModel.commitPendingRemoval() },
         onDayClick = { date -> viewModel.jumpToDay(date) },
         onMonthClick = { date -> viewModel.jumpToMonth(date) },
         onTagPicked = { tagId -> viewModel.selectHeatmapTag(tagId) },
@@ -53,7 +55,7 @@ fun CalendarScreen(
             group = group,
             onDismiss = { selectedGroupKey = null },
             onUpdateInstance = { instance -> viewModel.updateInstance(instance) },
-            onRemoveInstance = { instance -> viewModel.removeInstance(instance) },
+            onRemoveInstance = { instance -> viewModel.removeInstance(instance, group.tagName) },
         )
     }
 }

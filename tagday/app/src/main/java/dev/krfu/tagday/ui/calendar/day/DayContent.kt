@@ -187,7 +187,10 @@ private fun TagGroupCapsule(
         modifier = modifier
             .clip(CircleShape)
             .background(backgroundColor)
-            .clickable(onClick = onCapsuleClick)
+            // Simple tags have nothing to edit (presence/absence only) — the instance-list
+            // sheet only makes sense for Rated/Valued. Simple stays removable via the "x"
+            // below. See ADR-018.
+            .clickable(enabled = group.type != TagType.SIMPLE, onClick = onCapsuleClick)
             .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
