@@ -142,23 +142,37 @@ on `CalendarViewModel`'s `zoomLevel` state.
   instances yet (freshly added, unrated) displays like a Simple group until an instance
   is rated — see ADR-008 in `DECISIONS.md`.
 - **Tap a row** → for **Rated or Valued** groups only, opens a bottom sheet, fixed at
-  50% of screen height and **not** dismissible by dragging, back press, or scrim tap — an
-  explicit close (✕) button next to the tag name is the only way to close it (ADR-021).
-  It lists the individual instances behind that group, each independently editable and
-  removable (per the resolved "manage individual instances" decision in `FEATURES.md`),
-  in a scrollable region (with a scrollbar once they overflow the fixed height) for both
-  types. Rated instances show an editable 1–5 `StarInput` (tap a star to set/change that
-  instance's rating, at any time — no requirement to rate at creation), plus a timestamp
-  below each row; Valued instances show an editable text field for that instance's
-  value, with no timestamp (dropped per ADR-021 — clutter for a type where the list is
-  reordered by hand, not by time) — the field can be typed/cleared freely, but it never
-  persists a blank value (ADR-021), same rule `AddValueRow` already applied to new
-  values. Both keep a delete icon per instance. **Simple**
-  capsules don't respond to a tap at all (`TagGroupCapsule`'s `clickable` is `enabled =
-  type != SIMPLE`) — there's no per-instance state to edit, only presence, so the sheet
-  would have nothing to offer beyond what the "x" below already does. See ADR-018.
-  **Valued** sheets additionally have: a leading **drag handle** per row (`DragHandle` in
-  `ValuedInstanceList`) for manually reordering values, persisted via
+  **not** dismissible by dragging, back press, or scrim tap — an explicit close (✕) button
+  next to the tag name is the only way to close it (ADR-021). It lists the individual
+  instances behind that group, each independently editable (per the resolved "manage
+  individual instances" decision in `FEATURES.md`). No timestamps anywhere in the sheet, for
+  either type.
+
+  Both panels **size to their content**, with 50% of screen height as a ceiling: one instance
+  opens a short sheet, and past the ceiling the list stops growing and scrolls (with a
+  scrollbar) instead, keeping the add-row below it visible (ADR-028). Every row has the same
+  shape — drag handle, the type's editor, delete button (`InstanceRow`) — over a shared
+  `ReorderableInstanceList` that owns the ordering, so both types reorder identically:
+
+  - **Rated** — five tappable stars per row. Tap a star to set or change that instance's
+    rating, at any time; there's no requirement to rate at creation (ADR-008). Below the list,
+    an add-rating row: pick stars, press "+". Pressing "+" with nothing picked adds an
+    *unrated* instance, which is a real state for this type. The empty-star glyph is a
+    hand-added drawable (`res/drawable/ic_star_border.xml`), because `material-icons-core`'s
+    `Icons.Outlined.Star` is a *solid* star — using it made every star look filled regardless
+    of the rating (ADR-025, and ADR-010 for the no-extended-icons rule).
+  - **Valued** — an editable text field per row, and an add-value row below the list. The
+    field can be typed/cleared freely but never persists a blank value (ADR-021), the same
+    rule `AddValueRow` applies to new values.
+
+  - **Simple** — a single stepper, `−  3  +`, over how many times the tag applies to the day
+    (which is exactly what the capsule's `walk (2)` count shows). No rows, no timestamps:
+    Simple instances are interchangeable, so there's nothing to list. "+" adds one; "−"
+    deletes the newest **immediately**, with no undo snackbar, because "+" restores an
+    equivalent instance exactly and a message saying the tag was "removed" would be wrong for
+    a decrement. The count floors at 1 — removing the tag from the day is still the capsule's
+    "x" below. See ADR-031, which supersedes ADR-018's "Simple isn't tappable".
+  Each row has a leading **drag handle** (`DragHandle`) for manual reordering, persisted via
   `TagInstance.sortOrder`. Press the handle and drag vertically — the row lifts (raised
   container color, drawn above its neighbours) and follows the finger, trading places with
   a neighbour once it passes half of that neighbour's height, and the new order is written
@@ -166,19 +180,22 @@ on `CalendarViewModel`'s `zoomLevel` state.
   drag in progress owns the touch and the list can't scroll itself then; dragging anywhere
   *other* than the handle scrolls the list as normal. Screen readers get the same reorder
   as move-up/move-down accessibility actions on the handle, since there's no way to
-  perform a touch-drag through one. The order applies everywhere the values are listed,
+  perform a touch-drag through one. The order applies everywhere the instances are listed,
   the capsule summary included — instances reach the UI already in display order and are
   rendered as given, rather than each screen sorting for itself (ADR-023). Reordering went
   through several failed attempts before this one — see ADR-021 for what didn't work and
   ADR-022 for the mechanism that does.
-  Valued sheets also have a fixed row below the instance list — a text field + add button
-  (`AddValueRow`) for adding another value without leaving the sheet. **Rated** has
-  neither the handle nor the add-row, staying edit/remove-only. See ADR-020, ADR-021,
-  ADR-022.
+  See ADR-020, ADR-021, ADR-022, ADR-028.
 - **Capsule "x"**: each group's capsule also has its own inline "x" (`TagGroupCapsule` in
   `DayContent.kt`), separate from the row-tap above — tapping it removes *all* of that
   tag's instances for the day, regardless of count, with no confirmation dialog (a fast
-  full-group removal, vs. the row-tap's per-instance editing/removal).
+  full-group removal, vs. the row-tap's per-instance editing/removal). Its tap area is a
+  32dp square (the ✕ glyph itself stays 14dp), which sets the capsule's ~32dp height. That
+  area is also *exactly* its touch target: Compose would normally inflate any tap target
+  under 48dp, and on a capsule this short that inflation reached back over the capsule's own
+  text and removed Simple tags on a body tap, so it's switched off for this one control
+  (`CAPSULE_REMOVE_TARGET_SIZE` in `DayContent.kt`). See ADR-026 for the diagnosis and
+  ADR-027 for why the fix ended up here rather than at a 48dp target.
 - **Undo**: neither the capsule "x" nor the row-tap sheet's per-instance delete deletes
   immediately — both are delay-delete (`CalendarViewModel`'s `PendingRemoval`, ADR-019).
   The item disappears from the Day list right away (an optimistic client-side filter,
@@ -256,25 +273,45 @@ to open.
   (case-insensitive substring, capped to a scrollable height) appear above the field.
   Tapping one adds a **blank** instance for today (same as before — no type picker,
   ever, since type is fixed on the tag) and clears the field.
-- **Type inference from syntax**, applied only when the typed name has no existing-tag
-  match (an exact case-insensitive name match always just adds a blank instance to that
-  tag, per the rule above — any `:suffix` typed alongside an exact match is ignored):
-  - `name` alone (no `:`) → ambiguous. A row of three filter chips (Simple / Rated /
-    Valued, via `TagType.label()`) shows alongside any suggestions (not instead of them —
-    ADR-021). Tapping **Simple** or **Rated** creates the tag with a blank first instance
-    (rating stays settable later via the instance-list sheet, same as today — ADR-008).
-    Tapping **Valued** instead creates the tag with *no* instance yet and opens the
-    instance-list sheet directly for it, so the user types the first real value there —
-    a Valued instance with no value has no meaningful display, unlike Rated's "unrated"
-    fallback (ADR-021).
-  - `name:***` (one or more literal `*` characters, nothing else, after the colon) →
-    unambiguous. Creates a **Rated** tag and seeds the first instance's rating with the
-    star count (clamped to 5 if more than five `*` are typed). No picker shown — a hint
-    line above the field ("Will create a new Rated tag") confirms what's about to
-    happen before the user taps `+`.
-  - `name:text` (any other non-blank text after the colon) → unambiguous. Creates a
-    **Valued** tag and seeds the first instance's value with that text, with the same
-    hint-line confirmation.
+- **Type picker**: while the typed name would create a new tag (valid name, no exact match),
+  a single-select **segmented button row** (Simple / Rated / Valued, via `TagType.label()`)
+  shows above the field, alongside any suggestions rather than instead of them (ADR-021).
+  **Simple is preselected**, so the common case is type-a-name-and-press-`+`. It's the
+  Material component for a small mutually-exclusive set that should stay visible — the mobile
+  counterpart to radio buttons — and carries `selectableGroup()` semantics so screen readers
+  announce one choice rather than three buttons. `+` creates the tag with whatever is
+  selected, and is disabled when there's nothing to add. The picker resets to Simple after
+  each add. See ADR-029.
+- **Type inference from syntax** is now a *shortcut that moves the picker*, not a separate
+  path — the selection always reflects what `+` will create. It applies only when the typed
+  name has no existing-tag match (an exact case-insensitive name match always just adds a
+  blank instance to that tag, per the rule above — any `:suffix` typed alongside an exact
+  match is ignored):
+  - `name` alone (no `:`) → nothing implied; the picker keeps its current selection.
+  - `name:***` (one or more literal `*` characters, nothing else, after the colon) → selects
+    **Rated** and seeds the first instance's rating with the star count (clamped to 5 if more
+    than five `*` are typed). Choosing **Rated** *without* a `:***` seed instead creates the
+    tag with no instance and opens the sheet to set the first rating there — same as Valued,
+    since landing on a bare unrated name isn't what picking "Rated" is asking for (ADR-031).
+  - `name:text` (any other non-blank text after the colon) → selects **Valued** and seeds the
+    first instance's value with that text. **Commas separate values**:
+    `film:dune,tenet,arrival` seeds three instances rather than one value reading
+    `dune,tenet,arrival` (entries are trimmed, empty ones dropped, and a suffix of nothing but
+    commas implies no type). A value can still contain spaces — `film:blade runner` is one
+    value — just not commas. See ADR-028.
+  - A manual pick after typing a suffix wins: choosing **Simple** with `film:dune` in the
+    field creates a Simple `film` and drops the typed value, which the selector shows plainly.
+  - Choosing **Valued** with no value typed does the same (ADR-021) — a Valued instance with
+    no value has nothing to display at all.
+- **Name rules**, enforced everywhere a tag can be named (here and the Tags view's rename
+  dialog), via `TagName` in `data/model/`: lowercase letters and single `-` separators,
+  starting and ending with a letter — `walk`, `fast-food`, `playing-game`. The field
+  normalizes as you type (lowercases; turns whitespace and `_` into `-`, so `fast food`
+  becomes `fast-food`; drops anything else that isn't a letter; collapses `--` runs; drops a
+  leading `-`), and only the part *before* the first `:` is touched, so values stay free
+  text. A trailing `-` survives typing (you can't reach `fast-food`
+  otherwise) but blocks creation until a letter follows it. Existing tags whose names
+  predate the rules still match when typed in full — only *creation* is gated. See ADR-028.
 - **Color** is auto-assigned for every new tag by cycling through `TagPalette`'s fixed
   colors (`allTags.size % colors.size`) — there is no manual color picker in this flow.
   Recoloring a tag happens in the Tags view (M3) instead, same as renaming.
@@ -316,6 +353,11 @@ here; creation stays exclusively in the Calendar screen's Day-zoom quick-entry b
 
 - **Filter**: typing filters the list by name (case-insensitive substring), same
   `TagRepository.observeFiltered` query the Day-zoom quick-entry bar already uses.
+- **Scrollbar**: a thumb down the right edge of the list, drawn only while the tag list
+  actually overflows the screen. Same `VerticalScrollbar` the instance-list sheet uses
+  (`ui/components/`, ADR-030) — for a `LazyColumn` its position is estimated from the
+  average visible row height, which is exact here since every row is the same shape. Filter
+  the list and the thumb resizes with it; a short list has no thumb at all.
 - **Color dot** (leading, tappable): opens `ColorPickerDialog` — the fixed palette plus
   a custom hue-slider + saturation/value-square picker (see below). Saving calls
   `TagsViewModel.updateColor`.
@@ -397,3 +439,38 @@ not scoped by this doc; don't design ahead of it.
   - Try to clear a value to blank and confirm it snaps back rather than persisting empty;
     confirm the sheet resists drag/back/scrim dismissal and that the close button works;
     and add a brand-new Valued tag end to end.
+  - **Capsule hit areas (ADR-026, ADR-027)**: tap a **Simple** capsule's text — it must do
+    nothing at all (no removal, no sheet), including right next to the ✕; then tap the ✕
+    itself and confirm it still removes the group. Repeat for a very short tag name
+    (`walk`). Since the ✕'s target is no longer inflated, check it still feels comfortable
+    to hit at 32dp — that's the one thing this fix trades away, and the constant to raise if
+    it doesn't.
+  - **Rated panel (ADR-025, ADR-028)**: confirm the hand-added `ic_star_border` drawable
+    renders as a hollow star and that a rating of 3 shows three filled and two hollow (the
+    bug it replaces made all five look filled). Check the new controls: delete a single
+    instance from a two-instance group, drag to reorder, and add a rating with "+" both with
+    and without stars picked (the latter should add an unrated row).
+  - **Simple count panel (ADR-031)**: tap a Simple capsule and confirm the panel is a short
+    stepper showing the right count; step up and down and confirm the capsule summary follows
+    (`walk` ↔ `walk (2)`) with **no** undo snackbar appearing; confirm "−" is disabled at 1 and
+    that the capsule "x" still removes the group entirely (with its snackbar).
+  - **Rated creation (ADR-031)**: pick Rated for a new name, press `+`, and confirm the sheet
+    opens on an empty Rated panel rather than the day showing an unrated bare name; then check
+    `mood:***` still creates it rated in one step without opening the sheet.
+  - **Scrollbars (ADR-030)**: with enough tags to overflow the Tags screen, confirm a thumb
+    appears down the right edge, tracks position as you scroll (not just at the extremes),
+    and disappears once the filter narrows the list to something that fits. Confirm the
+    instance sheet's own scrollbar still behaves after the move.
+  - **Panel heights (ADR-028)**: open a one-instance panel of each type — both should be
+    short, not half-screen. Then add instances until the ceiling is hit and confirm the list
+    starts scrolling *inside* the panel with the add-row still visible below it, rather than
+    the panel growing past half the screen or the add-row being pushed off.
+  - **Type picker (ADR-029)**: type a new name and confirm the picker appears with Simple
+    selected and `+` enabled; confirm it disappears once the name matches an existing tag;
+    type `:***` and confirm the selection jumps to Rated, then tap Simple and confirm `+`
+    creates a Simple tag; add a tag and confirm the picker is back on Simple for the next one.
+    With TalkBack, confirm the row announces as a single 3-option choice.
+  - **Name rules (ADR-028)**: type `Fast Food` into quick-entry and confirm it becomes
+    `fast-food`; type `fast--food` and confirm one dash survives; confirm `film:Blade Runner`
+    keeps the value's capitals and space while lowercasing only `film`; and open the rename
+    dialog on a tag, clear the field, and confirm Save is disabled with the rule explained.

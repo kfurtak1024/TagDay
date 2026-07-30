@@ -151,6 +151,32 @@ class TagInstanceRepositoryImplTest {
     }
 
     @Test
+    fun addValues_insertsOnePerValueWithDistinctAscendingSortOrder() = runBlocking {
+        // The comma shorthand (`film:dune,tenet`) inserts several instances in one go, so
+        // they can't all share one millisecond as their sortOrder or their order would be
+        // whatever `ORDER BY sortOrder` felt like breaking the tie into — ADR-028.
+        val dao = RecordingDao()
+
+        TagInstanceRepositoryImpl(dao).addValues(tagId = 7, date = 42, values = listOf("a", "b", "c"))
+
+        assertEquals(listOf("a", "b", "c"), dao.inserted.map { it.value })
+        assertEquals(listOf(7L, 7L, 7L), dao.inserted.map { it.tagId })
+        assertEquals(listOf(42, 42, 42), dao.inserted.map { it.date })
+        val sortOrders = dao.inserted.map { it.sortOrder }
+        assertEquals(sortOrders.sorted(), sortOrders)
+        assertEquals(sortOrders.size, sortOrders.distinct().size)
+    }
+
+    @Test
+    fun addValues_withNoValues_insertsNothing() = runBlocking {
+        val dao = RecordingDao()
+
+        TagInstanceRepositoryImpl(dao).addValues(tagId = 7, date = 42, values = emptyList())
+
+        assertTrue(dao.inserted.isEmpty())
+    }
+
+    @Test
     fun observeRangeGroups_groupsPerDayWithinRange() = runBlocking {
         val walk = tag(1, "walk", TagType.SIMPLE)
         val reading = tag(2, "reading", TagType.SIMPLE)

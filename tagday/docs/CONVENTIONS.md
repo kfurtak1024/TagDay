@@ -17,6 +17,12 @@ feature** under `ui/` (`ui/calendar/day`, `ui/tags`, …), **package by layer** 
 `data/` (`data/local`, `data/repository`, `data/model`). Don't mix the two strategies
 within the same subtree.
 
+`ui/components/` is the one exception: widgets that are genuinely shared across features
+live there (`VerticalScrollbar`). A widget used by a single feature stays inside it — and
+one used across a feature's own subpackages stays at that feature's root as `internal`
+(`ui/calendar/HeatmapDayCell.kt`, shared by `month/` and `year/`). Move something into
+`components/` when the second feature needs it, not in anticipation.
+
 ## Naming conventions
 
 | Kind | Pattern | Example |

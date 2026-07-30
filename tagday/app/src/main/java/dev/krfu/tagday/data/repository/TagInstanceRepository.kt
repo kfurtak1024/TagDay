@@ -20,6 +20,13 @@ interface TagInstanceRepository {
 
     suspend fun addInstance(tagId: Long, date: Int, rating: Int? = null, value: String? = null)
 
+    /**
+     * Adds one instance per entry in [values], each with a distinct `sortOrder` so they keep
+     * the given order (a plain [addInstance] loop would stamp them with the same
+     * millisecond and leave `ORDER BY sortOrder` to break the tie arbitrarily).
+     */
+    suspend fun addValues(tagId: Long, date: Int, values: List<String>)
+
     suspend fun updateInstance(instance: TagInstance)
 
     suspend fun updateInstances(instances: List<TagInstance>)

@@ -39,6 +39,23 @@ class TagInstanceRepositoryImpl @Inject constructor(
         )
     }
 
+    override suspend fun addValues(tagId: Long, date: Int, values: List<String>) {
+        val now = System.currentTimeMillis()
+        values.forEachIndexed { index, value ->
+            tagInstanceDao.insert(
+                TagInstance(
+                    tagId = tagId,
+                    date = date,
+                    value = value,
+                    createdAt = now,
+                    // now + index, so a batch typed as `a,b,c` stays in that order and still
+                    // sorts after anything already reordered by hand — see ADR-021.
+                    sortOrder = now + index,
+                ),
+            )
+        }
+    }
+
     override suspend fun updateInstance(instance: TagInstance) {
         tagInstanceDao.update(instance)
     }

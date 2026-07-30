@@ -2,7 +2,6 @@ package dev.krfu.tagday.ui.calendar.day
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,15 +12,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.local.entity.TagType
+import dev.krfu.tagday.data.model.TagName
 
 private const val MAX_VISIBLE_SUGGESTIONS = 4
 
@@ -43,13 +45,19 @@ private const val MAX_VISIBLE_SUGGESTIONS = 4
 fun TagQuickEntryBar(
     allTags: List<Tag>,
     onAddExistingTag: (tagId: Long) -> Unit,
-    onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
-    onCreateValuedTag: (name: String) -> Unit,
+    onCreateTag: (name: String, type: TagType, rating: Int?, values: List<String>) -> Unit,
+    onCreateTagForEditing: (name: String, type: TagType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    // The type is now an explicit selection rather than something a chip tap decides on the
+    // spot, so it needs to survive recomposition (and rotation) between typing and "+".
+    var selectedType by rememberSaveable { mutableStateOf(TagType.SIMPLE) }
     val parsed = ParsedTagInput.parse(query)
     val trimmedName = parsed?.name.orEmpty()
+    // Only *creating* a tag has to satisfy the naming rules; matching an existing one
+    // doesn't, so tags named before the rules existed stay reachable by typing their name.
+    val isCreatableName = TagName.isValid(trimmedName)
     val exactMatch = if (trimmedName.isEmpty()) {
         null
     } else {
@@ -65,15 +73,55 @@ fun TagQuickEntryBar(
             .take(MAX_VISIBLE_SUGGESTIONS)
     }
 
+    // The `name:***` / `name:value` shorthands (ADR-009) still work, and now move the
+    // selection rather than bypassing it — so what's selected is always what "+" will
+    // create, and the shorthand stays a shortcut instead of a hidden second mechanism.
+    val typeFromSyntax = when (parsed) {
+        is ParsedTagInput.Rated -> TagType.RATED
+        is ParsedTagInput.Valued -> TagType.VALUED
+        is ParsedTagInput.Ambiguous, null -> null
+    }
+    LaunchedEffect(typeFromSyntax) {
+        if (typeFromSyntax != null) selectedType = typeFromSyntax
+    }
+
+    val isCreating = exactMatch == null && isCreatableName
+
     fun submit() {
         when {
             trimmedName.isEmpty() -> return
             exactMatch != null -> onAddExistingTag(exactMatch.id)
-            parsed is ParsedTagInput.Rated -> onCreateTag(trimmedName, TagType.RATED, parsed.rating, null)
-            parsed is ParsedTagInput.Valued -> onCreateTag(trimmedName, TagType.VALUED, null, parsed.value)
-            else -> return
+            !isCreatableName -> return
+
+            // A seed only applies to the type it belongs to: pick Simple after typing
+            // `film:dune` and you get a Simple `film`, matching what the selector shows.
+            //
+            // Rated and Valued behave the same when nothing was seeded: create the tag with
+            // no instance and open the sheet to set the first rating/value there, rather than
+            // adding an instance with nothing in it (ADR-031).
+            selectedType == TagType.RATED -> {
+                val rating = (parsed as? ParsedTagInput.Rated)?.rating
+                if (rating == null) {
+                    onCreateTagForEditing(trimmedName, TagType.RATED)
+                } else {
+                    onCreateTag(trimmedName, TagType.RATED, rating, emptyList())
+                }
+            }
+
+            selectedType == TagType.VALUED -> {
+                val values = (parsed as? ParsedTagInput.Valued)?.values.orEmpty()
+                if (values.isEmpty()) {
+                    onCreateTagForEditing(trimmedName, TagType.VALUED)
+                } else {
+                    onCreateTag(trimmedName, TagType.VALUED, null, values)
+                }
+            }
+
+            // Simple has nothing to configure, so it's created with its first instance.
+            else -> onCreateTag(trimmedName, TagType.SIMPLE, null, emptyList())
         }
         query = ""
+        selectedType = TagType.SIMPLE
     }
 
     Surface(modifier = modifier.fillMaxWidth().imePadding(), tonalElevation = 3.dp) {
@@ -91,51 +139,28 @@ fun TagQuickEntryBar(
                 )
             }
 
-            // Shown whenever there's no exact match, regardless of whether suggestions
-            // are also showing — a partial match doesn't mean the typed name shouldn't
-            // also be creatable as its own new tag.
-            if (exactMatch == null) {
-                when (parsed) {
-                    is ParsedTagInput.Ambiguous -> Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 8.dp),
-                    ) {
-                        TagType.entries.forEach { type ->
-                            FilterChip(
-                                selected = false,
-                                onClick = {
-                                    // Valued has no "nothing set yet" display (unlike
-                                    // Rated's unrated fallback, ADR-008), so it opens the
-                                    // instance sheet to type a real value instead of
-                                    // creating a value-less instance up front (ADR-021).
-                                    if (type == TagType.VALUED) {
-                                        onCreateValuedTag(trimmedName)
-                                    } else {
-                                        onCreateTag(trimmedName, type, null, null)
-                                    }
-                                    query = ""
-                                },
-                                label = { Text(type.label()) },
-                            )
-                        }
-                    }
-
-                    // Type was inferred from the syntax, so say which one submitting will make.
-                    is ParsedTagInput.Rated -> InferredTypeHint(TagType.RATED)
-                    is ParsedTagInput.Valued -> InferredTypeHint(TagType.VALUED)
-                    null -> Unit
-                }
+            // Shown whenever the typed name would create a new tag — regardless of whether
+            // suggestions are also showing, since a partial match doesn't mean the typed name
+            // shouldn't also be creatable as its own new tag.
+            if (isCreating) {
+                TagTypePicker(
+                    selectedType = selectedType,
+                    onTypeSelected = { selectedType = it },
+                    modifier = Modifier.padding(vertical = 8.dp),
+                )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it },
+                    // Only the name half is sanitized as it's typed — values are free text
+                    // (`film:blade runner`, `set:1,2,3`) and must stay untouched.
+                    onValueChange = { raw -> query = sanitizeNameHalf(raw) },
                     singleLine = true,
                     placeholder = { Text(stringResource(R.string.day_quick_entry_placeholder)) },
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = { submit() }) {
+                IconButton(onClick = { submit() }, enabled = exactMatch != null || isCreating) {
                     Icon(
                         imageVector = Icons.Filled.Add,
                         contentDescription = stringResource(R.string.day_quick_entry_submit_content_description),
@@ -146,13 +171,48 @@ fun TagQuickEntryBar(
     }
 }
 
+/**
+ * Applies [TagName.sanitize] to everything before the first `:`, leaving the value/rating
+ * suffix alone. Keeps the field's text and the name that would be created identical, so
+ * there's never a hidden difference between what's typed and what gets saved.
+ */
+private fun sanitizeNameHalf(raw: String): String {
+    val separatorIndex = raw.indexOf(':')
+    return if (separatorIndex < 0) {
+        TagName.sanitize(raw)
+    } else {
+        TagName.sanitize(raw.substring(0, separatorIndex)) + raw.substring(separatorIndex)
+    }
+}
+
+/**
+ * Type picker for the tag about to be created. A single-select segmented button row, which is
+ * Material's component for a small set of mutually exclusive options that should all stay
+ * visible — and, unlike a plain `Row` of chips, it carries `selectableGroup()` semantics so
+ * screen readers announce it as one "N of 3" choice. Simple is preselected, so the common
+ * case is type-a-name-and-press-+ with nothing else to touch. See ADR-029.
+ */
 @Composable
-private fun InferredTypeHint(type: TagType, modifier: Modifier = Modifier) {
-    Text(
-        text = stringResource(R.string.day_quick_entry_type_hint, type.label()),
-        style = MaterialTheme.typography.labelMedium,
-        modifier = modifier.padding(vertical = 8.dp),
-    )
+private fun TagTypePicker(
+    selectedType: TagType,
+    onTypeSelected: (TagType) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Not fillMaxWidth: the row applies `width(IntrinsicSize.Min)` internally, so it sizes to
+    // its labels whatever the caller asks for — content-sized is the intended look.
+    SingleChoiceSegmentedButtonRow(modifier = modifier) {
+        TagType.entries.forEachIndexed { index, type ->
+            SegmentedButton(
+                selected = type == selectedType,
+                onClick = { onTypeSelected(type) },
+                shape = SegmentedButtonDefaults.itemShape(
+                    index = index,
+                    count = TagType.entries.size,
+                ),
+                label = { Text(type.label(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            )
+        }
+    }
 }
 
 @Composable

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -41,6 +42,7 @@ import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.ui.calendar.day.label
+import dev.krfu.tagday.ui.components.VerticalScrollbar
 import dev.krfu.tagday.ui.theme.TagDayTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +89,7 @@ fun TagsContent(
                     .fillMaxWidth()
                     .padding(16.dp),
             )
+            val listState = rememberLazyListState()
             if (uiState.tags.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -103,15 +106,21 @@ fun TagsContent(
                     )
                 }
             } else {
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(uiState.tags, key = { it.id }) { tag ->
-                        TagRow(
-                            tag = tag,
-                            onColorClick = { onColorClick(tag) },
-                            onRenameClick = { onRenameClick(tag) },
-                            onDeleteClick = { onDeleteClick(tag) },
-                        )
+                Box(modifier = Modifier.weight(1f)) {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                        items(uiState.tags, key = { it.id }) { tag ->
+                            TagRow(
+                                tag = tag,
+                                onColorClick = { onColorClick(tag) },
+                                onRenameClick = { onRenameClick(tag) },
+                                onDeleteClick = { onDeleteClick(tag) },
+                            )
+                        }
                     }
+                    // Overlay sibling, sized to the list — see VerticalScrollbar for why it
+                    // can't be chained onto the LazyColumn itself. Draws nothing until the
+                    // tag list actually overflows.
+                    VerticalScrollbar(state = listState, modifier = Modifier.matchParentSize())
                 }
             }
         }

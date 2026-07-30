@@ -10,14 +10,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -48,14 +48,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -67,9 +66,7 @@ import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import dev.krfu.tagday.ui.components.VerticalScrollbar
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
@@ -82,7 +79,10 @@ fun InstanceListSheet(
     onUpdateInstance: (TagInstance) -> Unit,
     onRemoveInstance: (TagInstance) -> Unit,
     onAddValue: (tagId: Long, value: String) -> Unit,
-    onReorderValues: (List<TagInstance>) -> Unit,
+    onAddRating: (tagId: Long, rating: Int?) -> Unit,
+    onIncrementCount: (tagId: Long) -> Unit,
+    onDecrementCount: (TagInstance) -> Unit,
+    onReorderInstances: (List<TagInstance>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // skipPartiallyExpanded + confirmValueChange rejecting Hidden means the only
@@ -100,6 +100,9 @@ fun InstanceListSheet(
         skipPartiallyExpanded = true,
         confirmValueChange = { it != SheetValue.Hidden },
     )
+    // Both panels size to their content and use half the screen only as a ceiling, so a
+    // one-row group opens a short sheet and a long one stops growing and scrolls instead
+    // (ADR-028, superseding ADR-021's fixed height and generalising ADR-025).
     val panelHeight = LocalConfiguration.current.screenHeightDp.dp * 0.5f
 
     ModalBottomSheet(
@@ -112,7 +115,7 @@ fun InstanceListSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(panelHeight)
+                .heightIn(max = panelHeight)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 24.dp),
         ) {
@@ -131,22 +134,59 @@ fun InstanceListSheet(
                     )
                 }
             }
-            if (group.type == TagType.VALUED) {
-                ValuedInstanceList(
-                    instances = group.instances,
-                    onUpdateInstance = onUpdateInstance,
-                    onRemoveInstance = onRemoveInstance,
-                    onReorder = onReorderValues,
-                    modifier = Modifier.weight(1f),
-                )
-                AddValueRow(onAdd = { value -> onAddValue(group.tagId, value) })
-            } else {
-                TimeOrderedInstanceList(
-                    instances = group.instances,
-                    type = group.type,
-                    onUpdateInstance = onUpdateInstance,
-                    onRemoveInstance = onRemoveInstance,
-                    modifier = Modifier.weight(1f),
+            // weight(fill = false) is what makes the panel responsive: the add-row below is
+            // measured first, then the list takes *at most* the space left under the ceiling
+            // and wraps to its content if that's shorter. weight(fill = true) would stretch
+            // it to fill, pinning the sheet open at the full ceiling every time.
+            val listModifier = Modifier.weight(1f, fill = false)
+            when (group.type) {
+                TagType.VALUED -> {
+                    ReorderableInstanceList(
+                        instances = group.instances,
+                        onReorder = onReorderInstances,
+                        modifier = listModifier,
+                    ) { instance, dragHandle ->
+                        InstanceRow(
+                            dragHandle = dragHandle,
+                            onRemove = { onRemoveInstance(instance) },
+                        ) {
+                            ValueField(instance = instance, onUpdateInstance = onUpdateInstance)
+                        }
+                    }
+                    AddValueRow(onAdd = { value -> onAddValue(group.tagId, value) })
+                }
+
+                TagType.RATED -> {
+                    ReorderableInstanceList(
+                        instances = group.instances,
+                        onReorder = onReorderInstances,
+                        modifier = listModifier,
+                    ) { instance, dragHandle ->
+                        InstanceRow(
+                            dragHandle = dragHandle,
+                            onRemove = { onRemoveInstance(instance) },
+                        ) {
+                            StarInput(
+                                rating = instance.rating ?: 0,
+                                onRatingSelected = { rating ->
+                                    onUpdateInstance(instance.copy(rating = rating))
+                                },
+                            )
+                        }
+                    }
+                    AddRatingRow(onAdd = { rating -> onAddRating(group.tagId, rating) })
+                }
+
+                // Simple has no per-instance state at all, so its instances are
+                // interchangeable and the only thing worth editing is how many there are
+                // (ADR-031, superseding ADR-018's "nothing to edit").
+                TagType.SIMPLE -> SimpleCountEditor(
+                    count = group.instances.size,
+                    onIncrement = { onIncrementCount(group.tagId) },
+                    // Newest first out, so repeated -/+ is a no-op rather than a reshuffle.
+                    onDecrement = {
+                        group.instances.maxByOrNull { it.sortOrder }?.let(onDecrementCount)
+                    },
                 )
             }
         }
@@ -154,54 +194,20 @@ fun InstanceListSheet(
 }
 
 /**
- * The list for types that stay in creation order — Rated in practice (Simple can't open
- * this sheet at all, ADR-018, but degrades to a plain timestamp row if it ever does).
- * Valued is manually ordered instead, see [ValuedInstanceList].
+ * A drag-reorderable instance list. Owns the ordering state, the drag gesture, the swap
+ * thresholds and the edge auto-scroll; [row] supplies what each instance actually looks
+ * like, and is handed the `dragHandle` to place wherever it wants (both current callers put
+ * it in a `ListItem`'s leading slot). Reordering commits once per drop via [onReorder].
+ *
+ * Shared by Valued and Rated — see ADR-022 for how the gesture works and ADR-028 for why
+ * Rated reuses it.
  */
 @Composable
-private fun TimeOrderedInstanceList(
+private fun ReorderableInstanceList(
     instances: List<TagInstance>,
-    type: TagType,
-    onUpdateInstance: (TagInstance) -> Unit,
-    onRemoveInstance: (TagInstance) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    ScrollableInstanceList(modifier = modifier) {
-        instances.forEach { instance ->
-            key(instance.id) {
-                ListItem(
-                    headlineContent = {
-                        when (type) {
-                            TagType.RATED -> StarInput(
-                                rating = instance.rating ?: 0,
-                                onRatingSelected = { rating ->
-                                    onUpdateInstance(instance.copy(rating = rating))
-                                },
-                            )
-                            // Nothing to edit — the timestamp is the whole row.
-                            else -> Text(text = formatTime(instance.createdAt))
-                        }
-                    },
-                    // Only where the headline is an editor, or it would just repeat itself.
-                    supportingContent = if (type == TagType.RATED) {
-                        { Text(text = formatTime(instance.createdAt)) }
-                    } else {
-                        null
-                    },
-                    trailingContent = { RemoveInstanceButton(onClick = { onRemoveInstance(instance) }) },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ValuedInstanceList(
-    instances: List<TagInstance>,
-    onUpdateInstance: (TagInstance) -> Unit,
-    onRemoveInstance: (TagInstance) -> Unit,
     onReorder: (List<TagInstance>) -> Unit,
     modifier: Modifier = Modifier,
+    row: @Composable (instance: TagInstance, dragHandle: @Composable () -> Unit) -> Unit,
 ) {
     // `instances` already arrives in sortOrder — see TagInstanceRepository.observeDayGroups.
     val persistedIds = instances.map { it.id }
@@ -322,21 +328,22 @@ private fun ValuedInstanceList(
         rows.forEachIndexed { index, instance ->
             key(instance.id) {
                 val isDragged = draggedId == instance.id
-                ListItem(
+                Box(
                     modifier = Modifier
                         .onSizeChanged { rowHeights[instance.id] = it.height }
                         .zIndex(if (isDragged) 1f else 0f)
                         .offset {
                             IntOffset(x = 0, y = if (isDragged) dragOffset.roundToInt() else 0)
-                        },
-                    colors = if (isDragged) {
-                        ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        )
-                    } else {
-                        ListItemDefaults.colors()
-                    },
-                    leadingContent = {
+                        }
+                        .background(
+                            if (isDragged) {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            } else {
+                                Color.Transparent
+                            },
+                        ),
+                ) {
+                    row(instance) {
                         DragHandle(
                             // Safe to reset from here: the node launches this UNDISPATCHED
                             // and its event loop delivers DragStarted before it starts
@@ -363,14 +370,8 @@ private fun ValuedInstanceList(
                             onMoveUp = { move(instance.id, -1) }.takeIf { index > 0 },
                             onMoveDown = { move(instance.id, 1) }.takeIf { index < rows.lastIndex },
                         )
-                    },
-                    headlineContent = {
-                        ValueField(instance = instance, onUpdateInstance = onUpdateInstance)
-                    },
-                    trailingContent = {
-                        RemoveInstanceButton(onClick = { onRemoveInstance(instance) })
-                    },
-                )
+                    }
+                }
             }
         }
     }
@@ -380,6 +381,10 @@ private fun ValuedInstanceList(
  * The scrollable region both instance lists live in: a `Column` rather than a `LazyColumn`
  * because these lists hold one tag's instances for a single day (a handful), and because
  * [ValuedInstanceList]'s drag needs every row measured, including off-screen ones.
+ *
+ * Wraps its content vertically, so a caller that wants a short region (Rated) just doesn't
+ * pass `weight(1f)`; scrolling kicks in when the content outgrows whatever height the
+ * caller's constraints allow.
  */
 @Composable
 private fun ScrollableInstanceList(
@@ -390,11 +395,110 @@ private fun ScrollableInstanceList(
     Box(modifier = modifier) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .verticalScroll(scrollState),
             content = content,
         )
-        ScrollbarTrack(state = scrollState, modifier = Modifier.align(Alignment.CenterEnd))
+        VerticalScrollbar(state = scrollState, modifier = Modifier.matchParentSize())
+    }
+}
+
+/**
+ * The shell every instance row shares: drag handle, the type's own editor, delete button.
+ * `ListItem` for its slot padding/alignment, with a transparent container so the dragged
+ * row's highlight (owned by [ReorderableInstanceList]) shows through.
+ */
+@Composable
+private fun InstanceRow(
+    dragHandle: @Composable () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+    editor: @Composable () -> Unit,
+) {
+    ListItem(
+        modifier = modifier,
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        leadingContent = { dragHandle() },
+        headlineContent = { editor() },
+        trailingContent = { RemoveInstanceButton(onClick = onRemove) },
+    )
+}
+
+/**
+ * The whole Simple panel: a stepper over the number of instances on the day, which is all a
+ * Simple tag has (presence, and how many times). "+" adds an instance, "−" deletes the newest
+ * outright — no undo snackbar, since "+" restores an equivalent one exactly (see
+ * `CalendarViewModel.removeInstanceImmediately`).
+ *
+ * Floored at 1: removing the tag from the day entirely is the capsule's "x", which keeps one
+ * removal path rather than two that behave differently (the "x" is undoable, ADR-019).
+ * See ADR-031.
+ */
+@Composable
+private fun SimpleCountEditor(
+    count: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        modifier = modifier.fillMaxWidth().padding(vertical = 16.dp),
+    ) {
+        IconButton(onClick = onDecrement, enabled = count > 1) {
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.ic_minus),
+                contentDescription = stringResource(
+                    R.string.day_instances_sheet_decrease_count_content_description,
+                ),
+            )
+        }
+        Text(text = count.toString(), style = MaterialTheme.typography.headlineSmall)
+        IconButton(onClick = onIncrement) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(
+                    R.string.day_instances_sheet_increase_count_content_description,
+                ),
+            )
+        }
+    }
+}
+
+/**
+ * Adds a rating, sitting where the Valued panel's add-value field does: pick the stars, then
+ * press "+". Submitting with nothing picked adds an *unrated* instance, which is a real state
+ * for this type (ADR-008) and matches what quick-entry's Rated chip already creates — so
+ * unlike [AddValueRow] there's nothing to guard against here. See ADR-028.
+ */
+@Composable
+private fun AddRatingRow(onAdd: (Int?) -> Unit, modifier: Modifier = Modifier) {
+    var rating by rememberSaveable { mutableIntStateOf(0) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier.fillMaxWidth().padding(top = 8.dp),
+    ) {
+        StarInput(
+            rating = rating,
+            onRatingSelected = { rating = it },
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = {
+                onAdd(rating.takeIf { it > 0 })
+                rating = 0
+            },
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(
+                    R.string.day_instances_sheet_add_rating_content_description,
+                ),
+            )
+        }
     }
 }
 
@@ -472,53 +576,6 @@ private fun DragHandle(
     }
 }
 
-// A dedicated overlay sibling, not a modifier chained onto the scrollable Column itself.
-// The previous attempt chained `.verticalScroll(state).verticalScrollbar(state)` on the
-// *same* node — but that puts the scrollbar's own draw inside the part of the modifier
-// chain that verticalScroll offsets to implement scrolling, so the thumb scrolled away
-// with the content instead of staying fixed as a viewport overlay: as you scrolled down,
-// more of the (fixed, document-relative) thumb rectangle ended up shifted above the
-// visible top edge and got clipped there, which is exactly "gets smaller and smaller,
-// doesn't move". A separate sibling Box, drawn in the *parent* Box's coordinate space,
-// is never touched by the Column's internal scroll offset — only `ScrollIndicatorState`
-// (read reactively, so it still redraws every scroll frame) determines where the thumb
-// sits within it.
-@Composable
-private fun ScrollbarTrack(state: ScrollState, modifier: Modifier = Modifier) {
-    val thumbColor = MaterialTheme.colorScheme.outline
-    Box(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(4.dp)
-            .drawBehind {
-                val indicator = state.scrollIndicatorState ?: return@drawBehind
-                val viewportSize = indicator.viewportSize
-                val contentSize = indicator.contentSize
-                val scrollOffset = indicator.scrollOffset
-                if (
-                    viewportSize <= 0 ||
-                    contentSize == Int.MAX_VALUE ||
-                    viewportSize == Int.MAX_VALUE ||
-                    scrollOffset == Int.MAX_VALUE ||
-                    contentSize <= viewportSize
-                ) {
-                    return@drawBehind
-                }
-                val trackHeight = size.height
-                val thumbHeight = (trackHeight * viewportSize / contentSize.toFloat())
-                    .coerceAtLeast(size.width * 4)
-                val maxScroll = (contentSize - viewportSize).toFloat()
-                val startY = (trackHeight - thumbHeight) * (scrollOffset / maxScroll)
-                drawRoundRect(
-                    color = thumbColor,
-                    topLeft = Offset(0f, startY),
-                    size = Size(size.width, thumbHeight),
-                    cornerRadius = CornerRadius(size.width / 2),
-                )
-            },
-    )
-}
-
 @Composable
 private fun AddValueRow(onAdd: (String) -> Unit, modifier: Modifier = Modifier) {
     var value by rememberSaveable { mutableStateOf("") }
@@ -577,10 +634,3 @@ private fun ValueField(
         modifier = modifier,
     )
 }
-
-// Immutable and thread-safe, so a top-level val rather than a remembered/passed-around
-// instance — same as DayContent.kt's formatters.
-private val timeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-private fun formatTime(epochMillis: Long): String =
-    Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalTime().format(timeFormatter)

@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.Tag
+import dev.krfu.tagday.data.model.TagName
 import kotlinx.coroutines.launch
 
 @Composable
@@ -24,9 +25,12 @@ fun RenameTagDialog(
     var name by rememberSaveable(tag.id) { mutableStateOf(tag.name) }
     var showDuplicateError by rememberSaveable(tag.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    // Rename is name-only (FEATURES.md § Tag types) — a ':***'/':value' suffix typed out
-    // of quick-entry-bar habit (ParsedTagInput.kt) must not leak into the stored name.
-    val trimmedName = name.substringBefore(':').trim()
+    // Sanitizing every keystroke means the only ways to be invalid here are "empty" and
+    // "ends with a separator" — plus a pre-existing name that predates these rules, which is
+    // shown as-is and only normalized once the user actually edits it. It also subsumes the
+    // old defence against a ':***'/':value' suffix typed out of quick-entry-bar habit
+    // (ParsedTagInput.kt): ':' simply can't be entered. See ADR-028.
+    val isValid = TagName.isValid(name)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -34,26 +38,31 @@ fun RenameTagDialog(
         text = {
             OutlinedTextField(
                 value = name,
-                onValueChange = {
-                    name = it
+                onValueChange = { raw ->
+                    name = TagName.sanitize(raw)
                     showDuplicateError = false
                 },
                 label = { Text(stringResource(R.string.tags_rename_dialog_label)) },
                 singleLine = true,
                 isError = showDuplicateError,
-                supportingText = if (showDuplicateError) {
-                    { Text(stringResource(R.string.tags_rename_dialog_error_duplicate)) }
-                } else {
-                    null
+                supportingText = when {
+                    showDuplicateError -> {
+                        { Text(stringResource(R.string.tags_rename_dialog_error_duplicate)) }
+                    }
+                    // Explains why Save is disabled, rather than leaving it inert.
+                    !isValid -> {
+                        { Text(stringResource(R.string.tags_name_rule_hint)) }
+                    }
+                    else -> null
                 },
             )
         },
         confirmButton = {
             TextButton(
-                enabled = trimmedName.isNotEmpty(),
+                enabled = isValid,
                 onClick = {
                     scope.launch {
-                        if (onRename(tag, trimmedName)) onDismiss() else showDuplicateError = true
+                        if (onRename(tag, name)) onDismiss() else showDuplicateError = true
                     }
                 },
             ) {

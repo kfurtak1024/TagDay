@@ -94,6 +94,9 @@ dev.krfu.tagday/
     │   ├── week/   # WeekContent
     │   ├── month/  # MonthContent (+ MonthGrid, reused by year/)
     │   └── year/   # YearContent
+    ├── components/ # cross-feature widgets — VerticalScrollbar (used by both the
+    │               # instance-list sheet and the Tags screen). Only for pieces genuinely
+    │               # shared between features; anything used by one feature stays with it.
     ├── tags/       # TagsScreen, TagsViewModel, TagsUiState, TagsContent,
     │               # RenameTagDialog, ColorPickerDialog
     ├── settings/   # SettingsScreen, SettingsContent — empty placeholder, see UI_UX.md

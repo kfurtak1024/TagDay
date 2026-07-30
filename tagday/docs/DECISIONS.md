@@ -500,6 +500,10 @@ association to shed.
 
 ## ADR-018: Day-zoom instance-edit sheet restricted to Rated/Valued tags
 
+> **Superseded by ADR-031.** Simple capsules are tappable again, opening a panel that edits
+> the day's *count* rather than listing timestamped rows. The reasoning below still explains
+> why the *original* Simple sheet was worth removing — ADR-031 doesn't bring that back.
+
 **Decision:** `TagGroupCapsule`'s tap target (`onCapsuleClick`, opening
 `InstanceListSheet`) is now `enabled = type != TagType.SIMPLE`. Tapping a Simple
 capsule does nothing; the sheet only ever opens for Rated or Valued groups. Simple's
@@ -650,7 +654,8 @@ effect of this change.
 no timestamp; quick-entry chip-row visibility bug fixed
 
 > **Point 3 (move-up/move-down reordering) is superseded by ADR-022**, which got a real
-> drag handle working. The rest of this ADR still stands. The "Why move-up/move-down
+> drag handle working, and **point 6's fixed panel height by ADR-028**, which made both
+> panels size to their content. The rest of this ADR still stands. The "Why move-up/move-down
 > buttons, not a drag handle" section below is kept for history — it's the record of what
 > was tried and why it failed, which ADR-022 builds directly on.
 
@@ -986,3 +991,427 @@ than the state machine. (3) buys little here: the fakes are ~60 lines each, they
 readable in-memory reference implementations, and a `MutableStateFlow`-backed fake models
 "a write shows up in the next emission" far more naturally than stubbed return values —
 which is exactly the behaviour these tests need to assert.
+
+---
+
+## ADR-025: The Rated instance sheet is a bare row of stars; hollow star is a hand-added drawable
+
+> **Points 1-3 are superseded by ADR-028**: the Rated panel got its per-instance delete back,
+> gained reordering and an add-rating row, and its content-sized height was generalised to
+> both panels. Point 4 (the hollow-star drawable) stands, and the reasoning in points 1-3 is
+> kept because ADR-028 is a deliberate re-decision of the same tradeoffs, not a correction.
+
+**Decision:** Four related changes to the **Rated** side of `InstanceListSheet`, which had
+been carrying the Valued side's layout by default:
+
+1. **Compact, content-sized panel.** ADR-021's fixed half-screen height now applies to
+   Valued only. Rated sizes to its content with `heightIn(max = panelHeight)`, so a
+   one-instance group opens a sheet barely taller than the stars themselves; the ceiling
+   only comes into play once enough instances stack up, at which point the list scrolls as
+   before. `ScrollableInstanceList` wraps its content vertically to allow this, and the
+   Rated list deliberately doesn't take `weight(1f)` the way the Valued one does.
+2. **No per-instance delete button.** Removing a Rated instance goes through the capsule's
+   own "x" (whole group, delay-delete via ADR-019). See the tradeoff below.
+3. **No timestamp.** Valued rows dropped theirs in ADR-021; Rated's is gone too, which
+   leaves nothing in the sheet that formats a time — `formatTime`/`timeFormatter` are
+   deleted with it. A Rated row is now just a `StarInput`, not a `ListItem`, since
+   `ListItem`'s one-line minimum height was itself part of the vertical bulk.
+4. **Stars now reflect the actual rating.** They previously rendered filled at every
+   position regardless of the value, which made the whole panel useless for reading a
+   rating back. Cause: `StarInput` used `Icons.Outlined.Star` for the empty state, and in
+   `material-icons-core` that icon's path data is *identical* to `Icons.Filled.Star` — a
+   solid star (verified against the artifact's own sources in the Gradle cache, not
+   assumed). The core artifact ships an `outlined` package covering the same ~48 icons as
+   `filled`, but for Star the two entries differ only by a redundant `lineTo` back to the
+   start point. The genuine hollow glyph (`star_border`) only exists in
+   `material-icons-extended`. Fixed by hand-adding `res/drawable/ic_star_border.xml` and
+   loading it with `ImageVector.vectorResource`, exactly the escape hatch ADR-010 set up
+   for `ic_label.xml`.
+
+**Alternatives considered:** (1) Keep the per-instance delete button but shrink it, or move
+it into an overflow. (2) Add `material-icons-extended` for `Icons.Outlined.StarBorder`.
+(3) Draw the empty star with `Canvas`/a stroked path instead of a drawable. (4) Render the
+empty state as a filled star tinted at low alpha, keeping `Icons.Filled.Star` for both.
+(5) Collapse a multi-instance Rated group to a single shared rating control, since the ask
+was "we just want to set one rating".
+
+**Why:** (1) is a real loss, and worth stating plainly: a Rated group with two instances
+can no longer have *one* of them removed — it's the whole group or nothing. That was the
+explicit instruction ("tag can be deleted by clicking 'x' on tag itself"), and it's
+consistent with Simple already being whole-group-only (ADR-018); Valued keeps its
+per-instance delete because it's the type where individual rows carry distinct content
+worth removing one at a time. (2) is the same ~1000-icon dependency ADR-010 turned down for
+one glyph, and release builds still don't run R8 to shake it out. (3) means hand-rolling a
+ten-vertex star polygon in code where a 12-line drawable does it declaratively, and loses
+the ability to eyeball the asset. (4) reads as "dimmer", not "empty", and low-alpha fills
+are exactly the kind of thing that disappears at low contrast. (5) was rejected as
+overreach: the underlying model genuinely allows several rated instances per day
+(`freediving: ★★★ (2)`), and silently editing them as one would either drop data or need a
+rule for which instance wins — the compact panel already achieves the stated goal for the
+common single-instance case without changing what the data means.
+
+**Verification note:** the drawable's `pathData` was checked by parsing it — two subpaths,
+outer wound clockwise and inner counter-clockwise (so the default nonZero fill leaves a
+hole), inner strictly inside outer, and the outer ring a regular 5-pointed star (10
+vertices, radii alternating 10.51/4.78 within 0.02). Malformed `pathData` throws at
+inflation time rather than build time, so "it compiles" says nothing here. It still hasn't
+been *looked at* on a device — see `UI_UX.md`'s known-issues list.
+
+---
+
+## ADR-026: The capsule "x" gets a real 48dp touch target, fixing Simple capsules that
+removed themselves on tap
+
+**Decision:** `TagGroupCapsule`'s inline remove control (`ui/calendar/day/DayContent.kt`)
+grows from a 20dp box to a 48dp square. The ✕ glyph stays 14dp, so the control looks the
+same; what changes is that the capsule is now as tall as that target (its vertical padding
+goes away, since the 48dp child sets the height) rather than ~32dp.
+
+**Why:** tapping a **Simple** capsule's text removed the tag. Cause, read out of
+`androidx.compose.ui` 1.11.4's `NodeCoordinator`/`ViewConfiguration` rather than guessed:
+Compose hit-testing expands any pointer-input node smaller than
+`ViewConfiguration.minimumTouchTargetSize` — a flat `DpSize(48.dp, 48.dp)`, defaulted on the
+interface and *not* overridden by `AndroidViewConfiguration`, so there's no device variance —
+evenly around the node. The 20dp ✕ therefore had a 48dp hit area reaching ~14dp back over
+the capsule's own text. `NodeCoordinator.outOfBoundsHit`'s documented priority is that a
+*direct* hit beats another node's inflated hit, which is exactly why this only affected
+Simple: on Rated/Valued the capsule body's `clickable` is enabled and won the overlap, but
+ADR-018 disables it for Simple, so nothing competed and the ✕ took the tap. At >= 48dp the
+inflation is zero (`calculateMinimumTouchTargetPadding` only pads a positive difference), so
+the touch bounds equal the visual bounds and can't overlap the text at all.
+
+**Alternatives considered:** (1) Keep the 20dp control and give Simple capsules a no-op
+`clickable` (with `indication = null`) purely to win the direct-hit priority. (2) Keep the
+20dp control and suppress the inflation for that subtree by providing a
+`LocalViewConfiguration` whose `minimumTouchTargetSize` is `DpSize.Zero`. (3) Move the ✕
+outside the capsule entirely. (4) Drop the inline ✕ and require the instance sheet (or a long
+press) for removal.
+
+**Why:** (1) works, but only by relying on hit-test precedence between two overlapping
+targets — a load-bearing no-op click handler that reads like dead code and that anyone
+tidying up would delete, re-introducing the bug; it also leaves a 20dp target, well under
+the accessibility minimum. (2) fixes the overlap by making a too-small target *officially*
+too small, trading a real accessibility property for visual density, and does it via a
+CompositionLocal override that would silently apply to anything later added to that subtree.
+(3) and (4) are redesigns of a control that works, for a bug that's a sizing mistake.
+
+**Tradeoff accepted:** Day-zoom capsules are taller (~32dp → 48dp), so the tag list is less
+dense. That also makes the *capsule* tap (which opens the instance sheet) meet the 48dp
+minimum, which it previously didn't either. If the density matters more than the guideline,
+the fallback is (1) — but it should then be commented as load-bearing, not left to look
+incidental. Same 48dp question is still open for `StarInput`'s 32dp stars, noted in
+`UI_UX.md`'s known-issues list.
+
+**Not verified on a device.** Hit-test geometry isn't something the unit tests reach (this
+is precisely the Composable gap `TESTING.md` documents), so the mechanism here is
+source-derived, not observed. `UI_UX.md`'s known-issues list has the taps to try.
+
+---
+
+## ADR-027: Capsules go back to 32dp; the ✕ keeps exact touch bounds instead of a 48dp size
+
+**Decision:** Supersedes ADR-026's *sizing* (its diagnosis stands). The capsule's ✕ tap area
+is 32dp square again — so capsules are ~32dp tall rather than 48dp — and the overlap bug is
+held shut a different way: a `CompositionLocalProvider` scoped to that one Box provides a
+`LocalViewConfiguration` whose `minimumTouchTargetSize` is `DpSize.Zero`, which switches off
+the inflation that caused the bug. Hit-testing reads `LayoutNode.viewConfiguration`, and
+`LayoutNode.compositionLocalMap`'s setter assigns it from exactly this CompositionLocal, so
+this is a supported path rather than a workaround. Net effect: the ✕'s touch bounds equal its
+visual bounds — the full 32dp right end of the capsule — and can no longer reach over the tag
+text, so a tap on a Simple capsule's body hits the (disabled, per ADR-018) body clickable and
+does nothing, which is the specified behaviour.
+
+The provider deliberately wraps **only** the ✕. The capsule body's own `clickable` keeps its
+default inflation, which is harmless there (it's an ancestor of the ✕, not a sibling
+competing with it, and the innermost node consumes first) and makes the sheet-opening tap
+slightly more forgiving vertically.
+
+**Why:** ADR-026 fixed the bug by making the ✕ a full 48dp, and listed this
+`LocalViewConfiguration` override as a rejected alternative — on the grounds that it trades a
+real accessibility property for visual density and would "silently apply to anything later
+added to that subtree". Both objections were raised against a version that wrapped the whole
+capsule; scoping it to the single Box answers the second one outright. The first is a genuine
+tradeoff, and it was called the wrong way: 48dp targets made every Day-zoom capsule 50%
+taller, and density on the app's primary surface was worth more than the guideline here — a
+32dp target that behaves exactly as it looks is also a real improvement on what shipped
+before ADR-026 (a 20dp glyph whose true target was 48dp and overlapped its neighbour).
+
+**Alternatives considered:** (1) Keep ADR-026's 48dp ✕ and accept the taller capsules.
+(2) Keep the small ✕ but give Simple capsules a no-op `clickable` so a direct hit wins the
+overlap. (3) Shrink the ✕ target below 32dp for even denser capsules. (4) Drop the inline ✕
+and remove groups only from the instance sheet.
+
+**Why:** (1) is what this supersedes — correct by the guideline, rejected on density.
+(2) still relies on hit-test precedence between two overlapping targets and reads as dead
+code (ADR-026 covers this). (3) is available by changing one constant
+(`CAPSULE_REMOVE_TARGET_SIZE`), but it now costs real tappability rather than just apparent
+size, since there's no inflation left to fall back on — 32dp is the floor worth defending
+without a device to test on. (4) removes a working fast path.
+
+**Consequence to keep in mind:** because inflation is off for the ✕, its size *is* its touch
+target, and that includes the bounds reported to accessibility services. Anything added to
+that Box's subtree later inherits the same rule.
+
+---
+
+## ADR-028: Content-sized instance panels, shared reorderable list, comma-seeded values, and
+tag-name rules
+
+**Decision:** Four changes, three of them re-decisions of earlier calls in this same corner
+of the app.
+
+1. **Both instance panels size to their content**, with half the screen height as a *ceiling*
+   rather than a fixed height (`heightIn(max = panelHeight)` on the sheet's content `Column`).
+   The instance list takes `Modifier.weight(1f, fill = false)`, which is what makes it work:
+   the add-row below is measured first, then the list gets whatever is left *as a maximum* and
+   wraps to its content if that's shorter. `fill = true` — the default, and what Valued used
+   before — stretches the list to fill, which is exactly what pinned the sheet open at full
+   height. Supersedes ADR-021's point 6 (fixed height) and generalises ADR-025's ceiling from
+   Rated to both types.
+2. **The Rated panel gets a per-instance delete button, drag-to-reorder, and an add-rating
+   row** ("+" next to a `StarInput`, where the Valued panel's add-value field sits). Pressing
+   "+" with no stars picked adds an *unrated* instance, which is a legitimate state for this
+   type (ADR-008) and matches what quick-entry's Rated chip already creates — so unlike
+   `AddValueRow`'s blank guard there's nothing to reject here. Reverses ADR-025's points 1-2.
+3. **`ValuedInstanceList` became `ReorderableInstanceList`**, shared by both types: it owns the
+   ordering state, drag gesture, swap thresholds and edge auto-scroll (all ADR-022 mechanics,
+   unchanged), and takes the row content as a slot that receives the drag handle to place.
+   `InstanceRow` is the shared shell (handle, editor, delete) each type fills with its own
+   editor. `CalendarViewModel.reorderValues` is renamed `reorderInstances` to match.
+4. **Comma-separated values seed several instances**: `film:dune,tenet` creates the tag with
+   two values rather than one literal `"dune,tenet"`. `ParsedTagInput.Valued` now carries a
+   non-empty `values: List<String>`, and a new `TagInstanceRepository.addValues` inserts one
+   instance per value with `sortOrder = now + index` — a plain `addInstance` loop would stamp
+   them all with the same millisecond and leave `ORDER BY sortOrder` (ADR-023) to break the
+   tie arbitrarily. A suffix of nothing but commas is treated as ambiguous, like a bare name.
+5. **Tag names are constrained**: lowercase letters, single `-` separators, starting and
+   ending with a letter (`^[a-z]+(-[a-z]+)*$`). `data/model/TagName` states the rule once for
+   both entry points that can name a tag, and splits it in two halves on purpose:
+   `sanitize` runs on every keystroke (lowercases; rewrites anything separator-shaped —
+   whitespace, `_`, `-` — to a single `-`; drops everything else; never leaves a leading or
+   doubled separator) while `isValid` gates the save. Whitespace becoming a separator rather
+   than vanishing is deliberate: `-` is *the* separator for these names (`fast-food`,
+   `playing-game`), so two typed words mean one separated name, not `fastfood`. They
+   differ over a trailing `-`, which sanitize must keep — you can't type `fast-food` without
+   passing through `fast-` — and isValid must reject. In the quick-entry bar only the text
+   *before* the first `:` is sanitized, since values are free text (`film:blade runner`,
+   `set:1,2,3`). The rename dialog sanitizes the whole field and disables Save while invalid,
+   with a supporting line explaining the rule instead of an inert button.
+
+**Why:** (1) and (2) are the user's call after living with the panels: a fixed half-screen
+sheet to edit one rating was mostly empty space, and ADR-025's stripped-down Rated panel went
+too far — losing per-instance delete meant a two-instance Rated group could only be removed
+wholesale. Worth noting that ADR-021's fixed height was *itself* a response to a complaint
+about the height moving around; what makes "responsive" work this time is that it's bounded,
+so the sheet can't grow past half the screen no matter how many instances there are. (3) is
+what makes (2) cheap — the alternative was a second copy of the drag machinery, which
+`TESTING.md` already flags as the most intricate untested logic in the app. (5) makes tag
+names predictable enough to type from memory and to read back in a summary
+(`movie: [dune, tenet]`), and the sanitize/validate split is what lets it be enforced without
+fighting the user mid-word.
+
+**Alternatives considered:** (a) Keep Valued's fixed height and make only Rated responsive.
+(b) Reject the trailing-`-` state as it's typed, rather than at save. (c) Enforce the name
+rules in the repository too. (d) Show an error for disallowed characters instead of silently
+dropping them. (e) Split comma-separated values in the sheet's add-value row as well, not just
+at creation. (f) Require at least one star before the add-rating "+" does anything.
+
+**Why:** (a) leaves two different height rules for two panels that are otherwise converging —
+harder to explain than one rule. (b) makes hyphenated names untypeable, which is what forced
+the two-halves design. (c) is the right instinct for a real invariant, but the repository is
+also what *reads* legacy rows: names created before this rule still exist, must keep working,
+and are still matchable by typing them (only *creation* is gated), so a hard repository-level
+check would either reject renaming a legacy tag to another legacy-shaped name or need an
+exemption list. The two UI entry points are the only writers today; if a third appears (an
+import path, say), that's the point to add the check in the data layer. (d) fights the user
+mid-keystroke for characters that can never be valid — dropping them is quieter and the rule
+is spelled out where it matters (the rename dialog's supporting text). Note that dropping
+applies to characters with no separator meaning (digits, punctuation); whitespace and `_` are
+*translated* instead, per point 5 — `walk 2` therefore lands on the incomplete `walk-` rather
+than a silently-different `walk`, which is visible and self-explaining. (e) wasn't asked for and
+would make a literal comma impossible to store from the one place built for careful, single
+value entry. (f) would make the sheet unable to add an unrated instance, something quick-entry
+can already do (ADR-008).
+
+**Known consequence:** a tag whose name predates these rules (spaces, capitals, digits) can
+still be displayed, matched by typing its exact name, and reordered/edited — but the rename
+dialog will insist on a conforming name before it saves, which is the intended migration path.
+Nothing rewrites existing names automatically.
+
+**Not verified on a device**, as ever for this screen — see `UI_UX.md`'s known-issues list for
+what to try, which now includes both panels' heights and the new Rated controls.
+
+---
+
+## ADR-029: Tag type is an explicit single-select segmented button, defaulting to Simple
+
+**Decision:** Creating a tag from the quick-entry bar now always shows a type picker with
+**Simple** preselected, and `+` is what creates the tag using whatever is selected. The picker
+is a Material **single-select segmented button row**
+(`SingleChoiceSegmentedButtonRow` + `SegmentedButton`, stable API in material3 1.4.0),
+replacing the three `FilterChip`s that previously appeared only for an ambiguous name and
+where *tapping a chip both chose the type and created the tag in one go*.
+
+Consequences of the type becoming a selection rather than an action:
+
+1. **The picker is always visible while creating** — whenever the typed name is valid and
+   isn't an exact match for an existing tag. It's hidden when the field is empty or resolves
+   to an existing tag, since there's no type to choose in either case.
+2. **The `name:***` / `name:value` shorthands (ADR-009) now move the selection** instead of
+   bypassing it, via a `LaunchedEffect` keyed on the type the syntax implies. What's selected
+   is therefore always what `+` will create, and the shorthand stays a shortcut rather than a
+   second, hidden mechanism. A manual pick afterwards wins (the effect only re-runs when the
+   *implied type itself* changes), so choosing Simple after typing `film:dune` gives a Simple
+   `film` and the typed value is dropped — visible in the selector rather than silent.
+3. **The "Will create a new Rated tag" hint line is gone**, along with its string: the picker
+   states the type directly, so a sentence restating it is redundant.
+4. **`+` is disabled** when there's nothing to add (empty or non-conforming name), matching the
+   rename dialog's disabled Save (ADR-028) instead of an inert button.
+5. Tapping **Valued** with no value typed still creates the tag with no instance and opens the
+   instance sheet, preserving ADR-021's reasoning — a value-less Valued instance has nothing
+   to display — just reached through `+` now rather than through the chip tap.
+6. The selection resets to Simple after each successful add, so "preselected Simple" holds for
+   every new tag rather than only the first.
+
+**Why a segmented button:** it's Material's designated component for a small set of mutually
+exclusive options that should all stay visible, and on mobile it's the conventional answer
+where a desktop UI would reach for radio buttons — Material reserves radio buttons for lists
+and dialogs, where each option needs its own labelled line. It also brings `selectableGroup()`
+semantics, so a screen reader announces one "2 of 3"-style choice instead of three unrelated
+buttons, which is exactly the accessibility difference between "select one of these" and
+"three things you can tap".
+
+**Alternatives considered:** (a) Keep `FilterChip`s but drive them as a single-select group
+(`selected = type == selectedType`). (b) Actual `RadioButton`s in a column. (c) A dropdown /
+`ExposedDropdownMenuBox` like the heatmap's tag picker. (d) Keep type inference as the only
+mechanism and show the picker only when the input is ambiguous. (e) No default — require a
+pick before `+` enables.
+
+**Why:** (a) is the closest runner-up and would have been a smaller diff, but chips carry
+filter/input semantics rather than "one of these", and getting the same `selectableGroup()`
+announcement means hand-rolling what the segmented row already does. (b) costs three vertical
+rows in a bar that sits above the keyboard, for the same information. (c) hides two of three
+options behind a tap and adds a menu to dismiss — worse for a choice this small, though it's
+the right call for the tag picker, where the list is unbounded. (d) is the behaviour being
+replaced: it made the type invisible whenever the syntax implied one, which is precisely what
+made "which type am I about to create?" unanswerable without knowing the shorthand. (e) would
+add a required step to the most common action (a Simple tag) for no gain — the instruction was
+explicitly "preselected simple".
+
+**Not verified on a device** — see `UI_UX.md`'s known-issues list.
+
+---
+
+## ADR-030: The scrollbar becomes a shared `ui/components` widget, typed to `ScrollableState`
+
+**Decision:** The instance-list sheet's private `ScrollbarTrack` moves to
+`ui/components/VerticalScrollbar.kt` as a public composable, and its parameter widens from
+`ScrollState` to **`ScrollableState`**. The Tags screen's `LazyColumn` now gets one too. This
+also establishes `ui/components/` as the home for widgets shared *across features* —
+previously there was nowhere for such a thing to live, since `CONVENTIONS.md` packages `ui/`
+by feature.
+
+**Why `ScrollableState`:** `scrollIndicatorState` is declared on the `ScrollableState`
+interface, not on `ScrollState`, so widening costs nothing and both `ScrollState` and
+`LazyListState` satisfy it — the drawing logic is identical for a `Column(verticalScroll)`
+and a `LazyColumn`. Worth knowing that `LazyListState` implements the trio as *estimates*
+(`visibleItemsAverageSize() * firstVisibleItemIndex + firstVisibleItemScrollOffset`, and a
+content size extrapolated the same way), which the interface explicitly allows. For the Tags
+list that estimate is exact, since every row is a `ListItem` of the same shape; for a list of
+wildly varying row heights the thumb would drift slightly, which is acceptable for an
+indicator and worth remembering before reusing it somewhere heterogeneous.
+
+The "only when needed" behaviour was already in the original: the draw is skipped when
+`contentSize <= viewportSize`, and equally when any of the three values is still
+`Int.MAX_VALUE` ("not yet known"). One robustness fix came along with the move — the thumb's
+position ratio is now `coerceIn(0f, 1f)`, since a lazy layout's estimated `scrollOffset` can
+briefly exceed `contentSize - viewportSize` while the estimate settles, which would otherwise
+push the thumb past the end of the track.
+
+**Alternatives considered:** (1) Copy the ~25 lines into `TagsContent` and keep both private.
+(2) Keep it in `ui/calendar/day/` and import it from `ui/tags/` (Kotlin permits it — the
+package boundary isn't enforced). (3) Put it in `ui/theme/`. (4) Make it a `Modifier`
+extension (`Modifier.verticalScrollbar(state)`) instead of a composable. (5) Fade the thumb in
+while scrolling and out when idle, instead of showing it whenever content overflows.
+
+**Why:** (1) is two copies of geometry that already went wrong once (ADR-021's first attempt
+chained it onto the scrollable node and the thumb scrolled away with the content) — exactly
+the kind of thing that should have one home. (2) would leave the Tags screen depending on the
+calendar's Day package for a scrollbar, which is the sort of quiet coupling the
+package-by-feature rule exists to prevent. (3) `theme/` is for colors/typography, not
+widgets. (4) reads nicer at the call site but is what ADR-021 tried and abandoned: a modifier
+on the scrollable node draws inside the scrolled coordinate space; a modifier on a *wrapper*
+would work but hides the fact that this needs to be an overlay sibling, and the sizing
+subtlety (`matchParentSize`, not `fillMaxHeight`) is easier to state as a call-site argument
+than to bury. (5) is nicer on a phone and is what platform scrollbars do, but it needs an
+animation + idle-timeout and an `InteractionSource`/`isScrollInProgress` hookup; deferred as
+polish rather than bundled into a move — the always-visible-when-overflowing version is what
+the sheet has shipped with and it's legible.
+
+**Not verified on a device.** Same Composable gap as ever (`TESTING.md`) — `UI_UX.md`'s
+known-issues list has the checks.
+
+---
+
+## ADR-031: Rated creation defers to the sheet like Valued; Simple gets a count-only panel
+
+**Decision:** Two changes to what happens when a tag is created or tapped.
+
+1. **Creating a Rated tag without a `:***` seed now creates the tag with no instance and
+   opens the instance sheet**, exactly as Valued already did. `createValuedTagForEditing`
+   generalises to `createTagForEditing(name, type)` and `pendingValuedTagEdit` to
+   `pendingTagEdit`; the sheet's synthetic empty group was already type-driven, so the Rated
+   panel opens with an empty list and its add-rating row ready (ADR-028). Typing `mood:***`
+   still creates the tag *with* that rating in one step — only the unseeded case defers.
+2. **Simple capsules are tappable again** (superseding ADR-018), opening a panel whose only
+   control is a stepper over how many times the tag applies to that day: `−  3  +`. "+" adds
+   an instance; "−" deletes the newest one **immediately**, with no undo snackbar. The count is
+   floored at 1 — removing the tag from the day entirely stays the capsule's "x".
+   `CalendarViewModel.addExistingTag` is renamed `addInstance` since the count editor uses the
+   same path, and a new `removeInstanceImmediately` provides the non-undoable delete. The minus
+   glyph is a hand-added `ic_minus.xml`, since `material-icons-core` has no minus (ADR-010).
+
+**Why (1):** ADR-021 gave Valued the defer-to-sheet treatment because a value-less Valued
+instance displays as nothing useful, and explicitly kept Rated creating a blank instance
+*because* Rated has a sensible empty display — ADR-008's rule that an all-unrated group
+summarises like Simple. That reasoning was about what's displayable, not about what someone
+choosing "Rated" is trying to do: picking Rated and pressing "+" means "I want to rate this",
+and landing on a bare `freediving` with no way to rate it without a second tap into the sheet
+is the wrong default. ADR-008's fallback is untouched and still needed — an instance can
+become unrated by other routes (the sheet's "+" with no stars picked, ADR-028) — it just isn't
+the shape *creation* aims for any more.
+
+**Why (2):** ADR-018 removed the Simple sheet because its content was a timestamp and a delete
+button, i.e. a slower path to what the capsule "x" already did in one tap. That was correct,
+and this doesn't undo it: the new panel shows neither timestamps nor per-instance rows. Count
+*is* the one piece of state a Simple tag has on a day (`walk (2)` is a count, and it's already
+in the summary), and until now the only way to reach 3 was to type the name into quick-entry
+three times, with no way down from 3 except deleting the whole group and starting over. A
+stepper is the smallest control that closes that gap.
+
+**Why "−" skips delay-delete:** a Simple instance holds nothing but its own existence, so "+"
+restores an equivalent one exactly — there's nothing an undo could recover that the adjacent
+button doesn't. Worse, ADR-019's snackbar says "'walk' removed", which is plainly wrong for a
+decrement from 3 to 2. Undo still guards the paths where something is actually lost: the
+capsule "x" (the whole group) and the Rated/Valued per-instance deletes.
+
+**Alternatives considered:** (a) Let the Simple count go to 0, closing the sheet and removing
+the group. (b) Route "−" through delay-delete for consistency with ADR-019. (c) A text field
+for the count instead of a stepper. (d) Remove the oldest instance rather than the newest.
+(e) Keep Rated's creation as-is and let the user tap into the sheet themselves.
+
+**Why:** (a) gives two removal paths that behave differently — the "x" is undoable, a stepper
+to 0 wouldn't be — and makes the sheet dismiss itself as a side effect of a decrement, which
+reads as a glitch. (b) is covered above. (c) invites typing 400, needs validation and a
+keyboard for a number that's realistically 1–5, and can't beat two taps. (d) is
+indistinguishable to the user (Simple instances are interchangeable and show no timestamps
+since ADR-025) but makes repeated −/+ churn `sortOrder` unnecessarily; taking the newest makes
+the pair a true no-op. (e) is the behaviour being changed, and leaves "Rated" as the one type
+whose creation doesn't get you to a rating.
+
+**Note on ADR-026/ADR-027:** Simple's body `clickable` being *disabled* was what let the ✕'s
+inflated touch target steal body taps. That case no longer exists, but ADR-027's exact-bounds
+trick stays — it's what keeps the ✕'s target where it looks, and without it the ✕ would inflate
+into the FlowRow's gaps and compete with capsules in adjacent rows.
+
+**Not verified on a device** — see `UI_UX.md`'s known-issues list.

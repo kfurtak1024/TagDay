@@ -56,6 +56,12 @@ class FakeTagInstanceRepository(
         )
     }
 
+    override suspend fun addValues(tagId: Long, date: Int, values: List<String>) {
+        // One at a time through addInstance, which already hands out an increasing
+        // id/createdAt/sortOrder — mirroring the real impl's distinct sortOrders (ADR-028).
+        values.forEach { value -> addInstance(tagId, date, value = value) }
+    }
+
     override suspend fun updateInstance(instance: TagInstance) {
         instances.value = instances.value.map { if (it.id == instance.id) instance else it }
     }

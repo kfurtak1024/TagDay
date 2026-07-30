@@ -47,10 +47,10 @@ class CalendarViewModel @Inject constructor(
     // new one commits whichever was already pending first (see beginPendingRemoval).
     private val pendingRemoval = MutableStateFlow<PendingRemoval?>(null)
 
-    // Single-shot signal for createValuedTagForEditing — CalendarScreen opens the sheet
-    // for this tag id once, then calls consumePendingValuedTagEdit.
-    private val _pendingValuedTagEdit = MutableStateFlow<Long?>(null)
-    val pendingValuedTagEdit: StateFlow<Long?> = _pendingValuedTagEdit.asStateFlow()
+    // Single-shot signal for createTagForEditing — CalendarScreen opens the sheet for this
+    // tag id once, then calls consumePendingTagEdit.
+    private val _pendingTagEdit = MutableStateFlow<Long?>(null)
+    val pendingTagEdit: StateFlow<Long?> = _pendingTagEdit.asStateFlow()
 
     val uiState: StateFlow<CalendarUiState> = combine(
         query,
@@ -130,7 +130,12 @@ class CalendarViewModel @Inject constructor(
         query.update { it.copy(selectedTagId = tagId) }
     }
 
-    fun addExistingTag(tagId: Long) {
+    /**
+     * One more instance of an existing tag on the focused day, carrying no rating or value.
+     * Quick-entry uses it for a name that already exists; the instance sheet's Simple count
+     * editor uses it as its "+" (ADR-031).
+     */
+    fun addInstance(tagId: Long) {
         viewModelScope.launch {
             tagInstanceRepository.addInstance(tagId, query.value.focusedDate.epochDay())
         }
@@ -139,35 +144,58 @@ class CalendarViewModel @Inject constructor(
     /** Instance-list sheet's add-value row for Valued groups — see ADR-020. */
     fun addValue(tagId: Long, value: String) {
         viewModelScope.launch {
-            tagInstanceRepository.addInstance(tagId, query.value.focusedDate.epochDay(), value = value)
+            tagInstanceRepository.addValues(tagId, query.value.focusedDate.epochDay(), listOf(value))
         }
     }
 
-    fun createTagAndAdd(name: String, type: TagType, rating: Int? = null, value: String? = null) {
+    /** Instance-list sheet's add-rating row for Rated groups — see ADR-028. */
+    fun addRating(tagId: Long, rating: Int?) {
         viewModelScope.launch {
-            val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
-            val tagId = tagRepository.createTag(name, color, type)
-            tagInstanceRepository.addInstance(tagId, query.value.focusedDate.epochDay(), rating, value)
+            tagInstanceRepository.addInstance(tagId, query.value.focusedDate.epochDay(), rating)
         }
     }
 
     /**
-     * Quick-entry's Valued chip for a brand-new tag name: unlike Simple/Rated (which have
-     * a sensible "nothing set yet" state — see ADR-008 for Rated), a Valued instance with
-     * no value has no meaningful display, so this creates the tag only (no instance) and
-     * opens the instance-list sheet for it via [pendingValuedTagEdit], letting the user
-     * type the first value through the sheet's existing add-value row.
+     * Creates the tag and seeds it with one instance per entry in [values] — quick-entry's
+     * `film:dune,tenet` shorthand (ADR-028). An empty [values] seeds a single instance with
+     * no value, which is what Simple and Rated creation both want.
      */
-    fun createValuedTagForEditing(name: String) {
+    fun createTagAndAdd(
+        name: String,
+        type: TagType,
+        rating: Int? = null,
+        values: List<String> = emptyList(),
+    ) {
         viewModelScope.launch {
             val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
-            val tagId = tagRepository.createTag(name, color, TagType.VALUED)
-            _pendingValuedTagEdit.value = tagId
+            val tagId = tagRepository.createTag(name, color, type)
+            val date = query.value.focusedDate.epochDay()
+            if (values.isEmpty()) {
+                tagInstanceRepository.addInstance(tagId, date, rating)
+            } else {
+                tagInstanceRepository.addValues(tagId, date, values)
+            }
         }
     }
 
-    fun consumePendingValuedTagEdit() {
-        _pendingValuedTagEdit.value = null
+    /**
+     * Creates a Rated or Valued tag with **no** instance and opens the instance sheet for it
+     * via [pendingTagEdit], so the first rating/value is entered there rather than guessed at
+     * creation. Used by quick-entry when the type was picked without a `:***`/`:value` seed:
+     * a value-less Valued instance has nothing to display at all, and a rating-less Rated one
+     * shows as a bare name, which isn't what someone choosing "Rated" is asking for
+     * (ADR-021, ADR-031). Simple has nothing to configure, so it never comes through here.
+     */
+    fun createTagForEditing(name: String, type: TagType) {
+        viewModelScope.launch {
+            val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
+            val tagId = tagRepository.createTag(name, color, type)
+            _pendingTagEdit.value = tagId
+        }
+    }
+
+    fun consumePendingTagEdit() {
+        _pendingTagEdit.value = null
     }
 
     fun updateInstance(instance: TagInstance) {
@@ -176,8 +204,8 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
-    /** Instance-list sheet's drag-to-reorder for Valued groups. */
-    fun reorderValues(instances: List<TagInstance>) {
+    /** Instance-list sheet's drag-to-reorder, for both Valued and Rated groups. */
+    fun reorderInstances(instances: List<TagInstance>) {
         viewModelScope.launch {
             tagInstanceRepository.updateInstances(instances)
         }
@@ -186,6 +214,18 @@ class CalendarViewModel @Inject constructor(
     /** Instance-list sheet's per-instance delete — see ADR-019. */
     fun removeInstance(instance: TagInstance, tagName: String) {
         beginPendingRemoval(listOf(instance), tagName)
+    }
+
+    /**
+     * Deletes one instance outright, skipping the delay-delete/undo of [removeInstance]. Used
+     * by the Simple count editor's "−": a Simple instance holds nothing but its own existence,
+     * so "+" restores an equivalent one exactly, and a snackbar saying the tag was "removed"
+     * would be both redundant and wrong for a decrement. See ADR-031.
+     */
+    fun removeInstanceImmediately(instance: TagInstance) {
+        viewModelScope.launch {
+            tagInstanceRepository.removeInstances(listOf(instance))
+        }
     }
 
     /** Capsule "x" — whole group at once, see ADR-019. */

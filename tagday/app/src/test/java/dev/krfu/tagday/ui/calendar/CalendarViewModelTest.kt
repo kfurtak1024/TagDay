@@ -138,6 +138,51 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun createTagAndAdd_withSeveralValues_seedsOneInstancePerValueInOrder() = runTest {
+        // Quick-entry's `film:dune,tenet,arrival` shorthand — ADR-028.
+        val (viewModel, tagRepository, instanceRepository) = viewModelWith(tags = emptyList())
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.createTagAndAdd("film", TagType.VALUED, values = listOf("dune", "tenet", "arrival"))
+
+        val created = tagRepository.tags.value.single()
+        assertEquals(TagType.VALUED, created.type)
+        assertEquals(
+            listOf("dune", "tenet", "arrival"),
+            instanceRepository.instances.value.sortedBy { it.sortOrder }.map { it.value },
+        )
+        // Distinct sortOrders, or `ORDER BY sortOrder` would break the tie arbitrarily.
+        val sortOrders = instanceRepository.instances.value.map { it.sortOrder }
+        assertEquals(sortOrders.size, sortOrders.distinct().size)
+    }
+
+    @Test
+    fun addRating_addsAnInstanceOnTheFocusedDateWithThatRating() = runTest {
+        val (viewModel, _, instanceRepository) = viewModelWith()
+        keepSubscribed(viewModel.uiState)
+        viewModel.stepTime(-2)
+
+        viewModel.addRating(walk.id, 4)
+
+        val added = instanceRepository.instances.value.single()
+        assertEquals(walk.id, added.tagId)
+        assertEquals(4, added.rating)
+        assertEquals(today.minusDays(2).toEpochDay().toInt(), added.date)
+    }
+
+    @Test
+    fun addRating_withNoStarsPicked_addsAnUnratedInstance() = runTest {
+        // A Rated instance may legitimately exist unrated and be rated later (ADR-008), so
+        // the sheet's "+" doesn't need a rating to add a row.
+        val (viewModel, _, instanceRepository) = viewModelWith()
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.addRating(walk.id, null)
+
+        assertNull(instanceRepository.instances.value.single().rating)
+    }
+
+    @Test
     fun createTagAndAdd_createsTheTagThenSeedsOneInstance() = runTest {
         val (viewModel, tagRepository, instanceRepository) = viewModelWith(tags = emptyList())
         keepSubscribed(viewModel.uiState)
@@ -152,42 +197,76 @@ class CalendarViewModelTest {
         assertEquals(4, added.rating)
     }
 
-    // --- fresh Valued tag (ADR-021) ---------------------------------------------------
+    // --- fresh tag opened for editing (ADR-021, ADR-031) ------------------------------
 
     @Test
-    fun createValuedTagForEditing_createsTagWithNoInstanceAndSignalsTheSheet() = runTest {
-        val (viewModel, tagRepository, instanceRepository) = viewModelWith(tags = emptyList())
-        keepSubscribed(viewModel.uiState)
+    fun createTagForEditing_createsTagWithNoInstanceAndSignalsTheSheet() = runTest {
+        // Both Rated and Valued: neither has anything worth showing until the first
+        // rating/value is entered, so creation defers to the sheet instead of guessing.
+        listOf(TagType.VALUED, TagType.RATED).forEach { type ->
+            val (viewModel, tagRepository, instanceRepository) = viewModelWith(tags = emptyList())
+            keepSubscribed(viewModel.uiState)
 
-        viewModel.createValuedTagForEditing("movie")
+            viewModel.createTagForEditing("film", type)
 
-        val created = tagRepository.tags.value.single()
-        assertEquals(TagType.VALUED, created.type)
-        assertTrue(instanceRepository.instances.value.isEmpty())
-        assertEquals(created.id, viewModel.pendingValuedTagEdit.value)
+            val created = tagRepository.tags.value.single()
+            assertEquals(type, created.type)
+            assertTrue(instanceRepository.instances.value.isEmpty())
+            assertEquals(created.id, viewModel.pendingTagEdit.value)
+        }
     }
 
     @Test
-    fun consumePendingValuedTagEdit_clearsTheSignalSoItOnlyFiresOnce() = runTest {
+    fun consumePendingTagEdit_clearsTheSignalSoItOnlyFiresOnce() = runTest {
         val (viewModel, _, _) = viewModelWith(tags = emptyList())
         keepSubscribed(viewModel.uiState)
-        viewModel.createValuedTagForEditing("movie")
+        viewModel.createTagForEditing("movie", TagType.VALUED)
 
-        viewModel.consumePendingValuedTagEdit()
+        viewModel.consumePendingTagEdit()
 
-        assertNull(viewModel.pendingValuedTagEdit.value)
+        assertNull(viewModel.pendingTagEdit.value)
+    }
+
+    // --- Simple count editor (ADR-031) ------------------------------------------------
+
+    @Test
+    fun addInstance_addsOneMoreOfTheSameTagOnTheFocusedDay() = runTest {
+        val (viewModel, _, instanceRepository) = viewModelWith(listOf(instance(1, walk.id)))
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.addInstance(walk.id)
+
+        assertEquals(2, viewModel.uiState.value.dayGroups().single().instances.size)
+        assertEquals(2, instanceRepository.instances.value.size)
+        assertEquals(todayEpochDay, instanceRepository.instances.value.last().date)
+    }
+
+    @Test
+    fun removeInstanceImmediately_deletesWithoutAnUndoWindow() = runTest {
+        // Unlike removeInstance, nothing is left pending: the count editor's "-" is undone by
+        // pressing "+", so a snackbar would be noise (and would say "removed", which is wrong).
+        val (viewModel, _, instanceRepository) = viewModelWith(
+            listOf(instance(1, walk.id), instance(2, walk.id)),
+        )
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.removeInstanceImmediately(instance(2, walk.id))
+
+        assertEquals(listOf(1L), instanceRepository.instances.value.map { it.id })
+        assertNull(viewModel.uiState.value.pendingRemoval)
+        assertEquals(1, viewModel.uiState.value.dayGroups().single().instances.size)
     }
 
     // --- reorder (ADR-022) ------------------------------------------------------------
 
     @Test
-    fun reorderValues_writesTheGivenInstancesThroughToTheRepository() = runTest {
+    fun reorderInstances_writesTheGivenInstancesThroughToTheRepository() = runTest {
         val first = instance(1, movie.id, value = "dune", sortOrder = 0)
         val second = instance(2, movie.id, value = "terminator", sortOrder = 1)
         val (viewModel, _, instanceRepository) = viewModelWith(listOf(first, second))
         keepSubscribed(viewModel.uiState)
 
-        viewModel.reorderValues(listOf(second.copy(sortOrder = 0), first.copy(sortOrder = 1)))
+        viewModel.reorderInstances(listOf(second.copy(sortOrder = 0), first.copy(sortOrder = 1)))
 
         assertEquals(1, instanceRepository.reorderCalls.size)
         // Display order follows sortOrder (ADR-023), so the group now leads with terminator.

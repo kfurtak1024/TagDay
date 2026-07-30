@@ -61,13 +61,21 @@ per ADR-016), and a top-bar `ZoomLevelPicker` dropdown for jumping directly to a
 level, per ADR-012 and ADR-014. A conditional top-bar icon (`jumpToToday`, ADR-017)
 returns to today from Day zoom only; Week/Month/Year instead highlight today's
 row/cell/tile in place, sized to what each density has room for. Day zoom has Simple,
-Rated, and Valued tags with full grouping/aggregation; tapping a Rated or Valued group
-opens a bottom sheet for per-instance editing/removal, Simple groups don't respond to a
-tap (nothing to edit — ADR-018). Valued sheets also have an in-sheet "add value" row for
+Rated, and Valued tags with full grouping/aggregation; tapping any group opens a bottom
+sheet to edit it — per-instance rows for Rated/Valued, and for Simple a count-only stepper,
+since how many times it applies is all a Simple tag has (ADR-031, superseding ADR-018's
+"Simple isn't tappable"). Creating a Rated or Valued tag without a `:***`/`:value` seed
+creates it with no instance and opens that sheet, rather than guessing an empty one
+(ADR-021, ADR-031). Valued sheets also have an in-sheet "add value" row for
 adding a new instance without leaving the sheet; Rated has no equivalent, staying
 edit/remove-only (ADR-020). The sheet is a fixed 50% of screen height and only closes via
-an explicit close button (not drag/back/scrim); Valued rows also drop their timestamp,
-and both types' lists scroll (with a scrollbar) within that fixed height (ADR-021).
+an explicit close button (not drag/back/scrim), and shows no timestamps (ADR-021,
+ADR-025). Both types' panels now have the same shape and share one `ReorderableInstanceList`:
+a row per instance (drag handle, editor, delete) plus an add-row below, sized to content up to
+half the screen, past which the list scrolls (ADR-028). Rated's editor is five stars — whose
+empty glyph is a hand-added drawable, because `material-icons-core`'s `Icons.Outlined.Star` is
+a *solid* star and made every rating look like five (ADR-025) — and its add-row adds an
+unrated instance when "+" is pressed with nothing picked (ADR-008).
 Valued rows reorder by dragging a leading handle, with edge auto-scroll while dragging and
 move-up/move-down kept as accessibility actions on that handle — `Modifier.draggable` with
 `startDragImmediately`, which is what finally made a drag handle coexist with the list's
@@ -77,20 +85,33 @@ removal paths (that sheet's per-instance delete,
 and each capsule's inline "x" for whole-group removal) are delay-delete: a snackbar with
 an "Undo" action holds the actual deletion for a few seconds (`PendingRemoval`, ADR-019).
 A small Past/Today/Future label sits on the header card (`TemporalColors`, ADR-017);
-adding a tag uses an always-visible quick-entry bar (`TagQuickEntryBar`) with
-syntax-based type inference and auto-assigned color (ADR-009). Week is a multi-tag dot
+adding a tag uses an always-visible quick-entry bar (`TagQuickEntryBar`) with a
+Simple/Rated/Valued segmented-button type picker that defaults to Simple, syntax
+shorthands that move that selection rather than bypass it, and auto-assigned color
+(ADR-009, ADR-029). Week is a multi-tag dot
 overview; Month/Year are a single-tag heatmap (instance count only, `TagPickerDropdown`).
 `TagsScreen` (list/filter/rename/recolor/delete, reached via the Calendar screen's
-top-right icon) is management-only, with an in-house HSV color picker (ADR-011). A
+top-right icon) is management-only, with an in-house HSV color picker (ADR-011) and a
+scrollbar on its list — the shared `ui/components/VerticalScrollbar`, also used by the
+instance sheet, which draws only while the content overflows (ADR-030). A
 `SettingsScreen` shell also exists (reached via a second top-right icon, next to Tags) —
 empty placeholder for now, scaffolded ahead of any specific content.
 
 Instance display order is owned by `TagInstanceDao`'s `ORDER BY sortOrder`, not by each
 consumer sorting for itself (ADR-023) — that's what makes a manual reorder show up in the
-day capsule as well as in the sheet. Unit tests cover the repositories, both ViewModels
-(ADR-024) and the pure date/parsing utilities; Composables and gesture code are the
+day capsule as well as in the sheet. Day capsules are ~32dp tall and their ✕ opts out of
+Compose's minimum-touch-target inflation, which otherwise overlapped the capsule text
+and removed Simple tags on a body tap (ADR-026, ADR-027). Unit tests cover the
+repositories, both ViewModels (ADR-024) and the pure date/parsing utilities; Composables
+and gesture code are the
 deliberate gap, since instrumented tests need a device this environment doesn't have. See
 `docs/TESTING.md`.
+
+**Tag names are constrained** to lowercase letters with single `-` separators, starting and
+ending with a letter (`data/model/TagName`, ADR-028). Both naming entry points — the
+quick-entry bar and the rename dialog — normalize as the user types and refuse to save a
+non-conforming name; only the part before a `:` is normalized, so values stay free text.
+Names predating the rule still work and are only brought into line on rename.
 
 **Before changing the Room schema, read `docs/DATA_MODEL.md` § Schema history &
 migrations.** The database still uses `fallbackToDestructiveMigration(dropAllTables =

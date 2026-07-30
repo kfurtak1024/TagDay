@@ -22,7 +22,7 @@ The tag repository. One row per distinct tag name.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `Long` (PK, autogenerate) | Stable internal id; everything else references this, not the name. |
-| `name` | `String` | Unique, case-insensitive (`NOCASE` collation + unique index). Renamable. |
+| `name` | `String` | Unique, case-insensitive (`NOCASE` collation + unique index). Renamable. Shape is constrained to `^[a-z]+(-[a-z]+)*$` at the UI entry points (`data/model/TagName`), not by the schema — rows predating the rule are still valid data. See ADR-028. |
 | `type` | `String` enum (`SIMPLE` / `RATED` / `VALUED`) | Fixed at creation, immutable — no update path is exposed for this column. |
 | `color` | `Int` | 32-bit ARGB, from fixed palette or custom picker. |
 | `createdAt` | `Long` (epoch millis) | For sort order in the Tags view (e.g. "recently created"). |

@@ -18,6 +18,7 @@
     <string name="tags_rename_dialog_title">Rename tag</string>
     <string name="tags_rename_dialog_label">Name</string>
     <string name="tags_rename_dialog_error_duplicate">A tag with this name already exists</string>
+    <string name="tags_name_rule_hint">Lowercase letters, separated by single dashes — e.g. fast-food</string>
     <string name="tags_rename_dialog_save">Save</string>
     <string name="tags_rename_dialog_cancel">Cancel</string>
 
@@ -48,11 +49,13 @@
 
     <string name="day_quick_entry_placeholder">Add a tag…</string>
     <string name="day_quick_entry_submit_content_description">Add tag</string>
-    <string name="day_quick_entry_type_hint">Will create a new %1$s tag</string>
 
     <string name="day_instances_sheet_remove_content_description">Remove</string>
     <string name="day_instances_sheet_value_placeholder">Value</string>
     <string name="day_instances_sheet_add_value_content_description">Add value</string>
+    <string name="day_instances_sheet_add_rating_content_description">Add rating</string>
+    <string name="day_instances_sheet_decrease_count_content_description">One fewer</string>
+    <string name="day_instances_sheet_increase_count_content_description">One more</string>
     <string name="day_instances_sheet_reorder_content_description">Reorder</string>
     <string name="day_instances_sheet_move_up_content_description">Move up</string>
     <string name="day_instances_sheet_move_down_content_description">Move down</string>

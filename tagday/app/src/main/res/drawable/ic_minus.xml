@@ -1,0 +1,15 @@
+<!--
+  A plain minus, to pair with `Icons.Filled.Add` in the Simple count stepper.
+  `material-icons-core` has no minus/remove glyph (only the extended set does, which
+  ADR-010 rules out for a single icon), so it's a hand-added rounded bar matching the
+  proportions of the Add icon's crossbar: 14dp wide, 2dp tall, centred in a 24dp viewport.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M5,11h14v2H5z" />
+</vector>

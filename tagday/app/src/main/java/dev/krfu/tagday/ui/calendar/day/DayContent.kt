@@ -24,16 +24,21 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.krfu.tagday.R
@@ -50,6 +55,13 @@ private val weekdayFormatter = DateTimeFormatter.ofPattern("EEEE")
 private val monthFormatter = DateTimeFormatter.ofPattern("MMMM")
 private val yearFormatter = DateTimeFormatter.ofPattern("yyyy")
 private val headerContentDescriptionFormatter = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy")
+
+/**
+ * Side of the capsule's ✕ tap area, which also sets the capsule's height. Its touch bounds
+ * are exactly this — see the note in [TagGroupCapsule] and ADR-027 — so it's a real minimum,
+ * not a visual one: shrink it and the ✕ gets correspondingly harder to hit.
+ */
+private val CAPSULE_REMOVE_TARGET_SIZE = 32.dp
 
 /**
  * The Day zoom level's body — header card + tag capsules. Owns no `Scaffold`/top/bottom
@@ -197,32 +209,52 @@ private fun TagGroupCapsule(
         modifier = modifier
             .clip(CircleShape)
             .background(backgroundColor)
-            // Simple tags have nothing to edit (presence/absence only) — the instance-list
-            // sheet only makes sense for Rated/Valued. Simple stays removable via the "x"
-            // below. See ADR-018.
-            .clickable(enabled = group.type != TagType.SIMPLE, onClick = onCapsuleClick)
-            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            // Every type opens the instance sheet now — Simple's panel edits how many times
+            // the tag applies to the day, which is the only state it has (ADR-031, superseding
+            // ADR-018). Removing it from the day outright is still the "x" below.
+            .clickable(onClick = onCapsuleClick)
+            .padding(start = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = group.summary,
             color = contentColor,
             style = MaterialTheme.typography.bodyMedium,
         )
-        Box(
-            modifier = Modifier
-                .size(20.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onRemoveClick),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.day_capsule_remove_content_description, group.tagName),
-                tint = contentColor,
-                modifier = Modifier.size(14.dp),
-            )
+        // Exact touch bounds for the ✕ — and *only* for the ✕. Compose otherwise inflates
+        // any pointer-input node under 48dp evenly around itself, and on a capsule this
+        // short that inflation reached back over the tag text: on Simple, whose body
+        // `clickable` is disabled (ADR-018) and so didn't compete for the overlap, tapping
+        // the tag removed it. Sizing the ✕ up to 48dp fixed that but made every capsule
+        // 48dp tall, hence this instead — the ✕ is now exactly as tappable as it looks,
+        // the full 32dp right end of the capsule. Hit-testing reads
+        // `LayoutNode.viewConfiguration`, which comes from this CompositionLocal (see
+        // LayoutNode.compositionLocalMap's setter), so scoping the provider to this Box
+        // leaves the capsule body's own forgiving target untouched. ADR-026, ADR-027.
+        val viewConfiguration = LocalViewConfiguration.current
+        val exactTouchBounds = remember(viewConfiguration) {
+            object : ViewConfiguration by viewConfiguration {
+                override val minimumTouchTargetSize = DpSize.Zero
+            }
+        }
+        CompositionLocalProvider(LocalViewConfiguration provides exactTouchBounds) {
+            Box(
+                modifier = Modifier
+                    .size(CAPSULE_REMOVE_TARGET_SIZE)
+                    .clip(CircleShape)
+                    .clickable(onClick = onRemoveClick),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(
+                        R.string.day_capsule_remove_content_description,
+                        group.tagName,
+                    ),
+                    tint = contentColor,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
     }
 }

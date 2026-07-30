@@ -34,19 +34,30 @@ A tag can be added to the same day more than once. Each type displays this diffe
 | **Rated** | `★★★★` and `★★` | `freediving: ★★★ (2)` — average rating, with count |
 | **Valued** | `dune` and `terminator` | `movie: [dune, terminator]` — all values listed, with a per-value count when a specific value repeats |
 
+Several values can be added at once from the quick-entry bar by separating them with commas
+(`movie:dune,terminator` adds two instances) — see `UI_UX.md` § Quick-entry tag bar.
+
 ## Tag repository
 
 - Tags are identified internally by a stable **id**; the display **name** must be unique
   (case-insensitive) but can be changed after creation without breaking existing references.
+- **Name shape**: lowercase letters with single `-` separators, starting and ending with a
+  letter — `walk`, `fast-food`, `playing-game`. No spaces, digits, capitals or other
+  punctuation; no leading, trailing or doubled separators. Input is normalized as it's
+  typed — spaces and underscores become `-`, so typing `Fast Food` yields `fast-food`,
+  while digits and punctuation are dropped — and a name that still doesn't conform can't
+  be saved. Names created before this rule keep working and are only brought into line when
+  their tag is renamed. See ADR-028.
 - A tag definition holds: id, name, **type**, color, and creation date. Type is fixed at
   creation and immutable — see § Tag types.
 - **Color**: a single 32-bit (ARGB) integer. Tags created inline from the day-tagging
   flow get one auto-assigned from the fixed palette (no picker in that flow — see
   `UI_UX.md` § Quick-entry tag bar); manual choice from the fixed palette, plus a custom
   color option, belongs to the Tags view (M3).
-- Tags are created inline where they're first used, from the day-tagging flow only
-  (type either inferred from a `name:***`/`name:text` shorthand or chosen explicitly
-  when ambiguous) — type is chosen once, at creation. The Tags view is management-only
+- Tags are created inline where they're first used, from the day-tagging flow only. Type is
+  always an explicit selection there — a Simple/Rated/Valued picker that defaults to
+  **Simple**, which the `name:***`/`name:text` shorthand moves rather than bypasses
+  (ADR-029) — and is chosen once, at creation. The Tags view is management-only
   (list/filter/rename/recolor/delete existing tags); it has no "create" entry.
 - **Renaming** a tag (Tags view) updates the display name only — all existing day
   associations (identified by id) are unaffected.
@@ -128,19 +139,21 @@ Management screen for the tag repository.
   of the view; Week zoom keeps the multi-tag chip/dot style.
 - **Instance type mutability**: not applicable — type lives on the tag, fixed at creation
   and immutable. To use a tag concept differently, create a new tag with a different name.
-- **Managing individual instances**: tapping a **Rated or Valued** tag's group (e.g. the
-  Valued group `movie: [dune, terminator]`) shows an editable list of the individual
-  instances — each instance can be edited or removed independently. Removing the last
-  instance in a group simply removes that instance, and the group disappears from the
-  day's display once empty. **Simple** groups have nothing to edit (presence/absence
-  only) and don't respond to a tap at all — removal is whole-group only, via the "x"
-  below (ADR-018). **Valued** groups additionally have an "add value" row below the
-  list, for adding another instance without leaving the sheet; **Rated** has no
-  equivalent add control, only edit/remove of existing instances (ADR-020). **Valued**
-  values can also be manually reordered by dragging each row's handle (ADR-022) — that
-  order is also the order the day's capsule summary lists them in (ADR-023) — and both
-  types' lists scroll (with a scrollbar) instead of overflowing once there are more
-  instances than fit in the sheet's fixed height (ADR-021).
+- **Managing individual instances**: tapping any tag's group (e.g. the Valued group
+  `movie: [dune, terminator]`) opens an edit panel for it. What that panel holds depends on
+  what the type actually has to edit; all of them size to their content up to half the screen,
+  past which they scroll (ADR-028). Removing the last instance in a group removes that
+  instance and the group disappears from the day once empty.
+  - **Rated** and **Valued** list the instances — one row each, with a drag handle, the
+    type's editor and a delete button — plus an add-row below. Rated's editor is five tappable
+    stars and its add-row is stars plus "+", where "+" with no stars picked adds an unrated
+    instance (ADR-008, ADR-028). Valued's editor is a text field and its add-row a field plus
+    "+" (ADR-020); reordering (ADR-022) is also the order the day's capsule summary lists
+    values in (ADR-023).
+  - **Simple** has no rows at all — its instances are interchangeable — so the panel is a
+    single count stepper over how many times the tag applies to the day. "−" deletes an
+    instance outright (no undo, since "+" restores it) and stops at 1; removing the tag from
+    the day is the capsule's "x" (ADR-031, superseding ADR-018).
 - **Quick-removing a whole group**: each group's capsule also has an inline "x" that
   removes *all* of that tag's instances for the day in one tap, regardless of count
   (`walk (2)` → tap → gone entirely) — a fast path for "I didn't mean to tag this today

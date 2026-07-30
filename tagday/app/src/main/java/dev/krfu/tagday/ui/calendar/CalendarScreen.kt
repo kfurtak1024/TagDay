@@ -20,17 +20,17 @@ fun CalendarScreen(
     viewModel: CalendarViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val pendingValuedTagEdit by viewModel.pendingValuedTagEdit.collectAsStateWithLifecycle()
+    val pendingTagEdit by viewModel.pendingTagEdit.collectAsStateWithLifecycle()
 
     var selectedGroupKey by remember { mutableStateOf<Long?>(null) }
-    // True only for a tag just created via createValuedTagForEditing, opened before it
-    // has any instance — lets selectedGroup fall back to a synthetic empty group below
-    // instead of null. Any other selection (tapping a real capsule) leaves this false, so
-    // removing an existing group's last instance still auto-dismisses the sheet as before.
-    var selectedGroupIsFreshValuedTag by remember { mutableStateOf(false) }
+    // True only for a tag just created via createTagForEditing, opened before it has any
+    // instance — lets selectedGroup fall back to a synthetic empty group below instead of
+    // null. Any other selection (tapping a real capsule) leaves this false, so removing an
+    // existing group's last instance still auto-dismisses the sheet as before.
+    var selectedGroupIsFreshTag by remember { mutableStateOf(false) }
     val dayGroups = (uiState.periodData as? CalendarPeriodData.Day)?.groups.orEmpty()
     val selectedGroup = selectedGroupKey?.let { tagId ->
-        dayGroups.find { it.tagId == tagId } ?: if (selectedGroupIsFreshValuedTag) {
+        dayGroups.find { it.tagId == tagId } ?: if (selectedGroupIsFreshTag) {
             uiState.allTags.find { it.id == tagId }?.let { tag ->
                 TagDisplayGroup(
                     tagId = tag.id,
@@ -51,11 +51,11 @@ fun CalendarScreen(
             selectedGroupKey = null
         }
     }
-    LaunchedEffect(pendingValuedTagEdit) {
-        pendingValuedTagEdit?.let { tagId ->
+    LaunchedEffect(pendingTagEdit) {
+        pendingTagEdit?.let { tagId ->
             selectedGroupKey = tagId
-            selectedGroupIsFreshValuedTag = true
-            viewModel.consumePendingValuedTagEdit()
+            selectedGroupIsFreshTag = true
+            viewModel.consumePendingTagEdit()
         }
     }
 
@@ -63,12 +63,12 @@ fun CalendarScreen(
         uiState = uiState,
         onNavigateToTags = onNavigateToTags,
         onNavigateToSettings = onNavigateToSettings,
-        onAddExistingTag = { tagId -> viewModel.addExistingTag(tagId) },
-        onCreateTag = { name, type, rating, value -> viewModel.createTagAndAdd(name, type, rating, value) },
-        onCreateValuedTag = { name -> viewModel.createValuedTagForEditing(name) },
+        onAddExistingTag = { tagId -> viewModel.addInstance(tagId) },
+        onCreateTag = { name, type, rating, values -> viewModel.createTagAndAdd(name, type, rating, values) },
+        onCreateTagForEditing = { name, type -> viewModel.createTagForEditing(name, type) },
         onGroupClick = { group ->
             selectedGroupKey = group.tagId
-            selectedGroupIsFreshValuedTag = false
+            selectedGroupIsFreshTag = false
         },
         onGroupQuickRemove = { group -> viewModel.removeGroup(group) },
         onUndoRemoval = { viewModel.undoRemoval() },
@@ -90,7 +90,10 @@ fun CalendarScreen(
             onUpdateInstance = { instance -> viewModel.updateInstance(instance) },
             onRemoveInstance = { instance -> viewModel.removeInstance(instance, group.tagName) },
             onAddValue = { tagId, value -> viewModel.addValue(tagId, value) },
-            onReorderValues = { instances -> viewModel.reorderValues(instances) },
+            onAddRating = { tagId, rating -> viewModel.addRating(tagId, rating) },
+            onIncrementCount = { tagId -> viewModel.addInstance(tagId) },
+            onDecrementCount = { instance -> viewModel.removeInstanceImmediately(instance) },
+            onReorderInstances = { instances -> viewModel.reorderInstances(instances) },
         )
     }
 }
