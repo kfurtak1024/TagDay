@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TagInstanceRepositoryImplTest {
@@ -25,9 +26,27 @@ class TagInstanceRepositoryImplTest {
                 flowOf(tagRangeInstances)
             override suspend fun insert(instance: TagInstance): Long = throw NotImplementedError()
             override suspend fun update(instance: TagInstance) = throw NotImplementedError()
+            override suspend fun updateAll(instances: List<TagInstance>) = throw NotImplementedError()
             override suspend fun deleteAll(instances: List<TagInstance>) = throw NotImplementedError()
         }
         return TagInstanceRepositoryImpl(dao)
+    }
+
+    /** Captures what [TagInstanceRepositoryImpl.addInstance] actually builds. */
+    private class RecordingDao : TagInstanceDao {
+        val inserted = mutableListOf<TagInstance>()
+
+        override fun observeForDay(date: Int): Flow<List<TagInstanceWithTag>> = throw NotImplementedError()
+        override fun observeForRange(start: Int, end: Int): Flow<List<TagInstanceWithTag>> = throw NotImplementedError()
+        override fun observeForTagInRange(tagId: Long, start: Int, end: Int): Flow<List<TagInstance>> =
+            throw NotImplementedError()
+        override suspend fun insert(instance: TagInstance): Long {
+            inserted += instance
+            return inserted.size.toLong()
+        }
+        override suspend fun update(instance: TagInstance) = throw NotImplementedError()
+        override suspend fun updateAll(instances: List<TagInstance>) = throw NotImplementedError()
+        override suspend fun deleteAll(instances: List<TagInstance>) = throw NotImplementedError()
     }
 
     private fun row(tag: Tag, instance: TagInstance) = TagInstanceWithTag(instance = instance, tag = tag)
@@ -98,6 +117,37 @@ class TagInstanceRepositoryImplTest {
         )
 
         assertEquals("movie: [dune (2), terminator]", summaryFor(rows))
+    }
+
+    @Test
+    fun valued_summaryFollowsRowOrder_soAManualReorderShowsInTheCapsule() {
+        // The DAO orders rows by sortOrder (see TagInstanceDao) and summarize must not
+        // re-sort or otherwise lose that order — this is what makes a drag-reorder in the
+        // instance sheet show up in the capsule summary too. ADR-022.
+        val movie = tag(1, "movie", TagType.VALUED)
+        val rows = listOf(
+            row(movie, TagInstance(id = 3, tagId = 1, date = 0, value = "terminator", createdAt = 2, sortOrder = 0)),
+            row(movie, TagInstance(id = 1, tagId = 1, date = 0, value = "dune", createdAt = 0, sortOrder = 1)),
+        )
+
+        assertEquals("movie: [terminator, dune]", summaryFor(rows))
+    }
+
+    @Test
+    fun addInstance_seedsSortOrderFromCreatedAt_soNewValuesSortAfterReorderedOnes() = runBlocking {
+        // sortOrder is seeded with the same epoch-millis as createdAt rather than queried
+        // for (ADR-021): a manual reorder rewrites a group's sortOrder to small sequential
+        // indices, so any later insert's timestamp is guaranteed to sort after them.
+        val dao = RecordingDao()
+
+        TagInstanceRepositoryImpl(dao).addInstance(tagId = 5, date = 100, value = "dune")
+
+        val inserted = dao.inserted.single()
+        assertEquals(5L, inserted.tagId)
+        assertEquals(100, inserted.date)
+        assertEquals("dune", inserted.value)
+        assertEquals(inserted.createdAt, inserted.sortOrder)
+        assertTrue(inserted.sortOrder > 0)
     }
 
     @Test

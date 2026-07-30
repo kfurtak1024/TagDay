@@ -11,7 +11,8 @@ class TagRepositoryImpl @Inject constructor(
 ) : TagRepository {
     override fun observeAll(): Flow<List<Tag>> = tagDao.observeAll()
 
-    override fun observeFiltered(query: String): Flow<List<Tag>> = tagDao.observeFiltered(query)
+    override fun observeFiltered(query: String): Flow<List<Tag>> =
+        tagDao.observeFiltered(query.escapeLikeWildcards())
 
     override suspend fun createTag(name: String, color: Int, type: TagType): Long =
         tagDao.insert(Tag(name = name, type = type, color = color, createdAt = System.currentTimeMillis()))
@@ -33,3 +34,12 @@ class TagRepositoryImpl @Inject constructor(
         tagDao.delete(tag)
     }
 }
+
+/**
+ * Makes `%`, `_` and the escape character itself literal, for the tag-filter query's LIKE
+ * (which declares `ESCAPE '\'` — see `TagDao.observeFiltered`). The filter is a plain
+ * substring search from the user's point of view, so wildcards typed into it are text.
+ * Backslash first, or it would escape the escapes added after it.
+ */
+internal fun String.escapeLikeWildcards(): String =
+    replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

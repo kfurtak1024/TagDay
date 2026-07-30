@@ -1,5 +1,7 @@
 package dev.krfu.tagday.ui.calendar.day
 
+import androidx.annotation.ColorInt
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -145,9 +147,9 @@ private fun CalendarHeaderCard(date: LocalDate, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TemporalLabel(textRes: Int, color: Int, modifier: Modifier = Modifier) {
+private fun TemporalLabel(@StringRes textRes: Int, @ColorInt color: Int, modifier: Modifier = Modifier) {
     val backgroundColor = Color(color)
-    val contentColor = if (backgroundColor.luminance() > 0.5f) Color.Black else Color.White
+    val contentColor = contentColorOn(backgroundColor)
 
     Box(
         modifier = modifier
@@ -162,6 +164,14 @@ private fun TemporalLabel(textRes: Int, color: Int, modifier: Modifier = Modifie
         )
     }
 }
+
+/**
+ * Black or white, whichever stays legible on [background]. Tag colors (and the temporal
+ * labels') are palette/user-chosen rather than theme colors, so there's no `onColor` pair
+ * to reach for.
+ */
+private fun contentColorOn(background: Color): Color =
+    if (background.luminance() > 0.5f) Color.Black else Color.White
 
 /** Past/today/future relative to the device clock — see `UI_UX.md` § Day zoom and ADR-017. */
 private fun temporalLabelFor(date: LocalDate): Pair<Int, Int> {
@@ -181,7 +191,7 @@ private fun TagGroupCapsule(
     modifier: Modifier = Modifier,
 ) {
     val backgroundColor = Color(group.color)
-    val contentColor = if (backgroundColor.luminance() > 0.5f) Color.Black else Color.White
+    val contentColor = contentColorOn(backgroundColor)
 
     Row(
         modifier = modifier

@@ -167,13 +167,15 @@ quick-entry are simply auto-colored until then. See `UI_UX.md` § Quick-entry ta
 **Decision:** The Day screen's "open Tags" button needed a tag/label-shaped icon, which
 doesn't exist in `material-icons-core` (the only icon dependency this project has — a
 ~48-icon subset covering basics like Edit, Settings, List, Star). Rather than adding
-`material-icons-extended`, a single hand-added vector drawable (`res/drawable/ic_label.xml`, the standard Material "label" glyph) was added and loaded via
-`ImageVector.vectorResource(...)`.
+`material-icons-extended`, a single hand-added vector drawable
+(`res/drawable/ic_label.xml`, the standard Material "label" glyph) was added and loaded
+via `ImageVector.vectorResource(...)`.
 
 **Alternative considered:** Add `androidx.compose.material:material-icons-extended` and
 use `Icons.Filled.Sell` directly — less code, one dependency line.
 
-**Why:** `material-icons-extended` bundles ~1000+ icon composables; `app/build.gradle.kts` currently disables release-build optimization
+**Why:** `material-icons-extended` bundles ~1000+ icon composables;
+`app/build.gradle.kts` currently disables release-build optimization
 (`buildTypes.release.optimization.enable = false`), so R8 wouldn't tree-shake the
 unused ~999 icons out of a release build, inflating APK size for a single icon's worth
 of value. A one-off vector drawable costs one small XML file and zero new dependencies.
@@ -602,3 +604,385 @@ both would be redundant. (5) was rejected because `SnackbarHostState.showSnackba
 gives duration handling (including automatic extension for accessibility services, e.g.
 TalkBack) and a typed result (`ActionPerformed` vs. `Dismissed`) for free — a hand-rolled
 `Job` + `delay()` would have to reimplement both without the a11y awareness.
+
+---
+
+## ADR-020: Add-new-value control in the Valued instance sheet, Rated stays edit-only
+
+**Decision:** `InstanceListSheet` gains a new fixed row below the instance list, shown
+only when `group.type == TagType.VALUED`: a text field + "add" icon button
+(`AddValueRow`, `ui/calendar/day/InstanceListSheet.kt`). Submitting calls a new
+`CalendarViewModel.addValue(tagId, value)`, a thin pass-through to the existing
+`TagInstanceRepository.addInstance(tagId, date, value = value)` — no repository/DAO
+changes needed, since that method already supported a `value` argument for
+creation-time seeding. Blank/whitespace-only input is ignored, mirroring
+`TagQuickEntryBar.submit()`'s guard. **Rated** groups get no equivalent "add a new
+rating" control — the sheet stays edit-existing/remove-only there, unchanged from
+ADR-018/ADR-019.
+
+**Alternatives considered:** (1) A reveal-on-tap `+`/FAB that only shows the text field
+once tapped, instead of an always-visible row. (2) A symmetric "add a new instance"
+control for Rated too, for consistency between the two editable types. (3) Instead of
+adding an in-sheet control, fix `TagQuickEntryBar.submit()` so that typing `name:value`
+for a tag that already exists actually seeds that value rather than silently adding a
+blank instance (today, any exact name match short-circuits straight to
+`onAddExistingTag`, discarding whatever was typed after the `:`).
+
+**Why:** (1) was rejected because adding another value is expected to be a routine
+action for a Valued tag (that's the whole point of the type), not an edge case worth
+hiding behind an extra tap — the sheet already has vertical room, and every other
+editable row in it is already always-visible. (2) was rejected as unrequested scope:
+this feature was specifically asked for on Valued tags only ("allowing... adding new
+ones"), while Rated was only asked to support changing an existing instance's rating;
+building the extra control anyway would be scope nobody asked for, same reasoning
+ADR-018 already used to keep Simple out of the sheet entirely — if a symmetric Rated
+control is ever actually wanted, it's a contained follow-up, not something to bundle in
+by default. (3) is a real, separate bug (it also affects adding to existing Rated and
+Simple tags via quick-entry, not just Valued), but fixing it doesn't address the actual
+ask here — even a fixed quick-entry bar would still require leaving the sheet, retyping
+the tag name, and reopening the sheet to see the result, versus adding inline while
+already looking at the list. Left as a known pre-existing quirk, not fixed as a side
+effect of this change.
+
+---
+
+## ADR-021: Valued instance sheet — scroll+scrollbar, manual reordering, fixed height,
+no timestamp; quick-entry chip-row visibility bug fixed
+
+> **Point 3 (move-up/move-down reordering) is superseded by ADR-022**, which got a real
+> drag handle working. The rest of this ADR still stands. The "Why move-up/move-down
+> buttons, not a drag handle" section below is kept for history — it's the record of what
+> was tried and why it failed, which ADR-022 builds directly on.
+
+**Decision:** Several related adjustments to `InstanceListSheet`/`ValuedInstanceList`
+(`ui/calendar/day/InstanceListSheet.kt`), scoped to **Valued** groups unless noted:
+
+1. Valued rows no longer show the `createdAt` timestamp (`supportingContent`) below the
+   value field — Rated (and, if it were ever reachable, Simple) keep it, since Valued is
+   now manually ordered rather than time-ordered.
+2. Both Rated's and Valued's instance lists render inside a scrollable region with a
+   scrollbar, instead of overflowing the sheet. The scrollbar is a hand-drawn thumb
+   (`ScrollbarTrack`, a `Modifier.drawBehind` overlay reading
+   `ScrollableState.scrollIndicatorState` — a `scrollOffset`/`contentSize`/`viewportSize`
+   API this version of `androidx.compose.foundation`, 1.11.4, ships specifically for
+   scroll indicators) — no library, same "self-contained UI piece" precedent as
+   ADR-011's color picker. It's drawn as a **separate sibling `Box`**, not a modifier
+   chained onto the scrollable `Column` itself: chaining it directly (an earlier attempt)
+   puts the thumb's draw call inside the part of the tree that `verticalScroll` offsets
+   to implement scrolling, so it scrolls away with the content and gets increasingly
+   clipped against the viewport's top edge — reading as "shrinks, barely moves." A
+   sibling's coordinate space is never touched by the Column's internal scroll offset.
+3. Each Valued row gets move-up/move-down `IconButton`s (`Icons.Filled.KeyboardArrowUp`/
+   `KeyboardArrowDown`, both already part of the `material-icons-core` dependency this
+   project uses) instead of a drag handle. On tap, the tapped row swaps with its
+   neighbor and the whole group's `TagInstance.sortOrder` is rewritten sequentially via
+   a new `CalendarViewModel.reorderValues(instances)` → new
+   `TagInstanceRepository.updateInstances(instances)` → new
+   `TagInstanceDao.updateAll(instances)` (a plain `@Update` on a `List`, which Room
+   supports natively). See "Why" below for why this replaced an actual drag handle.
+4. `TagQuickEntryBar`'s suggestions list and its Simple/Rated/Valued type-chip
+   row/hint were previously rendered by a single mutually-exclusive `when` block, so
+   typing a name that partially matched an existing tag (showing suggestions) hid the
+   chip row needed to create a *new* tag with that exact name — "+" appeared to do
+   nothing. Fixed by making the two independent: suggestions show whenever there are
+   any, and the chip row/hint shows whenever there's no *exact* match, regardless of
+   whether suggestions are also present.
+5. The Valued chip in that same type-picker row no longer calls `onCreateTag` (which
+   immediately adds an instance with `value = null`) — `TagDisplayGroups.summarize`'s
+   Valued branch drops null values entirely (`mapNotNull { it.value }`), so that
+   instance had no meaningful display (`"name: []"`) and no working way to edit it
+   afterwards either. The chip now calls a new `onCreateValuedTag(name)` →
+   `CalendarViewModel.createValuedTagForEditing(name)`, which creates the tag with
+   **no** instance and opens `InstanceListSheet` directly for it via a new single-shot
+   `pendingValuedTagEdit: StateFlow<Long?>` that `CalendarScreen` observes; the sheet
+   falls back to a synthetic, instance-less `TagDisplayGroup` (built from the `Tag` row
+   in `allTags`, since `dayGroups` has nothing for a tag with zero instances yet) so it
+   opens showing only the `AddValueRow`, ready for the tag's first real value. This
+   fallback is gated by a `selectedGroupIsFreshValuedTag` flag set only by this flow —
+   tapping an existing capsule leaves it `false`, so removing an existing group's last
+   instance still auto-dismisses the sheet as before, rather than reopening it empty.
+6. `InstanceListSheet` is a **fixed** height (50% of screen height,
+   `LocalConfiguration.current.screenHeightDp.dp * 0.5f` on its content `Column`) instead
+   of sizing to content up to a cap, and can no longer be dismissed by dragging it, back
+   press, or scrim tap. `rememberModalBottomSheetState(skipPartiallyExpanded = true,
+   confirmValueChange = { it != SheetValue.Hidden })` rejects every attempt to *settle*
+   on `Hidden` (covers back press/scrim tap, which both dismiss via `sheetState.hide()`);
+   `ModalBottomSheet`'s `sheetGesturesEnabled = false` separately disables the sheet's
+   own `.draggable()` modifier outright, since `confirmValueChange` alone only vetoes
+   the final settle target — the drag itself still visibly followed the finger before
+   snapping back without it. `dragHandle = null` drops the visual affordance suggesting
+   it's draggable. The sheet now closes only via an explicit close (`Icons.Filled.Close`)
+   `IconButton` next to the tag name, calling `onDismiss` directly.
+7. It was possible to edit a Valued instance's value down to an empty string —
+   `InstanceEditor`'s `OutlinedTextField` called `onUpdateInstance` on every keystroke
+   with no guard, unlike `AddValueRow`, which already trims-and-rejects blank input
+   before calling `onAdd`. Fixed by giving the field a local `remember(instance.id)`
+   text buffer: it always shows whatever's being typed (so clearing the field to retype
+   a value still feels normal), but only calls `onUpdateInstance` when the trimmed text
+   is non-empty, so the persisted value can never actually become blank.
+
+Persisting a manual order requires a new `TagInstance.sortOrder: Long = 0` column
+(`TagDayDatabase` bumped to version 3, relying on the existing
+`fallbackToDestructiveMigration(dropAllTables = true)` in `di/DatabaseModule.kt` rather
+than a real `Migration`, consistent with how version 1→2 was handled pre-release).
+`addInstance` seeds `sortOrder = createdAt` at creation time (same
+`System.currentTimeMillis()` value) — this costs no extra query and keeps
+newly-added values sorting after any manually-reordered ones for free, since a
+manual reorder always rewrites the whole group's `sortOrder` to small sequential
+indices (`0, 1, 2, ...`), which are always less than a fresh epoch-millis timestamp.
+`InstanceListSheet` now sorts Valued rows by `sortOrder` instead of `createdAt`.
+
+**Why move-up/move-down buttons, not a drag handle:** the user originally asked for a
+drag handle, and that's where this feature started — but it went through five
+iterations trying to make a per-row drag handle coexist with the list's own
+`verticalScroll`, and never worked reliably, so it was replaced with buttons as a
+deliberate scope-down once the pattern of failure became clear. Worth recording in
+detail, since it's exactly the kind of thing someone might reasonably try to re-add
+later:
+
+1. A plain `detectDragGestures` on the handle raced the ancestor `Column`'s
+   `verticalScroll` and the sheet's own drag-to-dismiss, since all three independently
+   watched the same touch-slop threshold with no coordination — reordering sometimes
+   scrolled the list or resized the sheet instead of moving the row.
+2. Switching to `detectDragGesturesAfterLongPress` looked like a fix but wasn't: that
+   helper only ties disabling the ancestor scroll to *after* the long press resolves,
+   leaving the entire hold duration exposed to the same race.
+3. Hand-rolling the gesture (`awaitEachGesture`/`awaitFirstDown`/`drag`, claiming a
+   `draggingId` flag — which gated `verticalScroll`'s `enabled` param — on the very
+   first touch, before any long-press timer even started) fixed *that* race, but
+   uncovered a separate, unrelated bug: `ValuedInstanceList`'s row loop had no
+   `key(instance.id)` wrapper, so Compose tracked rows by *position*, and the first
+   in-gesture swap reassigned which instance rendered at the dragged row's position —
+   tearing down and recreating the composable (and its `pointerInput` coroutine) there,
+   killing every drag after exactly one swap.
+4. Adding `key(instance.id)` fixed *that*, but reordering still didn't work: the
+   long-press wait had become redundant for its original race-avoidance purpose (once
+   `draggingId` was claimed on first touch) but was still required before any drag
+   started, so an immediate natural drag attempt (the expected gesture for a handle)
+   silently did nothing until roughly 500ms of holding still had passed, with no visual
+   affordance hinting a hold was needed.
+5. Removing the wait (`drag()` tracking movement from the first touch) still didn't
+   work, and this time the actual root cause was found by pulling and reading the real
+   `androidx.compose.foundation` 1.11.4 sources (`Draggable.kt`/`Scrollable.kt`) rather
+   than reasoning from general Compose knowledge: `enabled = draggingId == null` only
+   takes effect on the *next recomposition*, but `DragGestureNode.isInterested()` (what
+   `verticalScroll`'s scrollable is built on) reads `enabled` at the moment of the
+   *down* event, which is necessarily still `true` then — we can only react to a down
+   after it's already happened. The ancestor scrollable therefore always registers
+   itself as a candidate for the gesture, and if it then wins the very first move
+   (plausible, since our recomposition may not have applied by the time that move is
+   dispatched), `drag()` treats losing even one move to another consumer as permanent,
+   immediate failure — not "skip this one and keep trying" — so the gesture died
+   silently on the first pixel of movement, every time. The fix at this point (removing
+   `verticalScroll`'s own gesture entirely, replacing it with a second hand-rolled
+   scroll loop) did work for scrolling in isolation, but broke normal list scrolling as
+   an unintended side effect and still needed to be verified for the handle itself —
+   at which point continuing to spend fixes on this exact interaction stopped being
+   worth it.
+
+Given five iterations of increasingly deep, individually-reasoned fixes each either
+failed or introduced a new regression, and given this project's own testing policy
+(`TESTING.md`) already documents that gesture "feel/timing/threshold correctness can
+only really be judged on a device" — unavailable in this working environment — it made
+sense to stop trying to make a drag handle coexist with a scrollable list at all, and
+use move-up/move-down buttons instead. A button's `onClick` has no gesture-arbitration
+race to lose: it fires once, unconditionally, on tap. This trades a fluid drag for a
+guaranteed-to-work discrete move — an explicit, deliberate scope-down, not a
+regression, given the track record above.
+
+**Alternatives considered:** (1) A `LazyColumn` with an external reorder library, for
+the (abandoned) drag-handle approach. (2) A dedicated "max sortOrder for this
+tagId+date" query to seed new instances at the end explicitly, instead of reusing
+`createdAt`. (3) Keep the sheet dismissible by back press/scrim tap while blocking only
+the drag gesture. (4) Leave the sheet's height dynamic (content-sized up to a cap, the
+pre-existing behavior) rather than fixed.
+
+**Why:** (1) was rejected on the same grounds as ADR-010/ADR-011 — no reorder library
+exists in this project's dependencies today; moot now that the drag handle itself was
+abandoned. (2) was rejected because reusing `createdAt` as the initial `sortOrder` gets
+the same "new values append to the end" behavior for free, with zero additional DAO
+queries or repository logic. (3) isn't achievable with `ModalBottomSheet`'s public API:
+back press and scrim tap both dismiss by calling `sheetState.hide()` and only invoke
+`onDismissRequest` once that completes, so a `confirmValueChange` that blocks the
+`Hidden` state blocks all three paths uniformly — there's no hook that distinguishes
+*why* a transition to `Hidden` was requested. Given that, disabling all implicit
+dismissal and adding one explicit, always-visible close button is more predictable than
+a partial block that still leaves two other implicit-dismiss paths in place. (4) was
+rejected because the user explicitly asked to remove the "sometimes resizes" behavior —
+a dynamic height was part of what made the panel feel inconsistent (short content
+leaves it small, overflow content snapped it to the cap); a fixed height is simpler to
+reason about and matches what was asked for directly, at the cost of visible empty
+space below a short instance list.
+
+---
+
+## ADR-022: Valued reordering is a real drag handle after all, via `Modifier.draggable`
+
+**Decision:** Supersedes ADR-021's point 3. Each Valued row's leading control is a drag
+handle again (`DragHandle` in `ui/calendar/day/InstanceListSheet.kt`): press it and drag
+vertically to move the row, which trades places with a neighbour once it has travelled
+past half of that neighbour's height, and commits the whole group's `sortOrder` once on
+drop (same `CalendarViewModel.reorderValues` → `updateInstances` → `updateAll` path
+ADR-021 already added). While a drag is in flight the rendered order is local state, so
+rows shuffle immediately instead of waiting for each swap to round-trip through Room; it
+resyncs from the persisted order whenever the *set* of instances changes (a value added
+or removed), but deliberately not on a pure order change, since this UI is the only
+writer of `sortOrder` and adopting a late-arriving emission of our own commit can revert
+a fresher local order. Move-up/move-down survive as `CustomAccessibilityAction`s on the
+handle — touch-drag is unreachable for screen readers, so the discrete path still has to
+exist, just not as visible buttons. The list's own `verticalScroll` is untouched, so
+dragging anywhere other than the handle still scrolls normally; because the handle
+consumes the events the scroll would otherwise use, holding a row near either edge of the
+viewport drives an explicit edge auto-scroll instead (a `withFrameNanos` loop that feeds
+the scroll it actually consumed back into the drag offset, so the row stays under the
+finger and keeps swapping as the list moves past it). That loop is armed by the drag's net
+*finger* travel — in magnitude and direction, and excluding its own feedback — so it only
+ever continues a drag the user is really making: since `startDragImmediately` means drags
+begin at touch-down, a press on the handle that never moves must not scroll, and a row
+being dragged *down* out of the top edge zone must not get yanked back up on its way out.
+(The residual drag offset is no use for that test — it flips sign at every swap.) The
+handle's glyph is
+`Icons.Filled.Menu` — the same stack of horizontal bars — because `DragHandle` is an
+extended-set icon and ADR-010/ADR-011's no-new-dependencies line still applies.
+
+**Why this worked where ADR-021's five attempts didn't:** every earlier attempt drove the
+gesture from `pointerInput` plus `detectDragGestures` / `awaitEachGesture` + `drag()`.
+`Modifier.draggable` instead installs a `DragGestureNode` — the *same class*
+`verticalScroll`'s scrollable is built on — so the handle competes with the list on equal
+terms instead of fighting it from outside. Reading `androidx.compose.foundation` 1.11.4's
+`Draggable.kt` and `androidx.compose.ui`'s `HitPathTracker.kt` (both pulled from the
+Gradle cache, as ADR-021's last attempts already started doing) confirms four separate
+mechanics that make this hold together, each of which was a failure mode before:
+
+1. **The handle wins arbitration by position in the tree.** `HitPathTracker`'s
+   `dispatchMainEventPass` recurses into children *before* invoking a node's own Main
+   handler, so the handle's node processes each move first, consumes it, and the ancestor
+   scrollable only ever sees an already-consumed move — at which point it parks itself in
+   `AwaitGesturePickup` for the rest of the gesture. This replaces ADR-021 attempt #5's
+   `enabled = draggingId == null` trick, which couldn't work: `enabled` is read at *down*
+   time, before there's anything to react to.
+2. **`startDragImmediately = true`** skips touch-slop detection entirely and consumes the
+   down event in the Initial pass, so the claim happens at touch-down rather than
+   depending on who crosses slop first — and with no long press (attempts #2/#4), which
+   left a race window open and then a silent hold requirement with no affordance.
+3. **Losing an event isn't fatal.** `DragGestureNode` has an explicit
+   `AwaitGesturePickup` state that re-enters slop detection if the gesture frees up again;
+   the low-level `drag()` helper the earlier attempts used treats a single move consumed
+   by someone else as immediate, permanent failure, which is precisely why attempt #5 died
+   on the first pixel of movement.
+4. **Offsetting the dragged row can't feed back into the deltas.** `HitPathTracker`
+   converts a change's `position` *and* `previousPosition` with the node's current
+   coordinates, so `positionChange()` is translation-invariant: a row that moves to follow
+   the finger doesn't thereby report smaller deltas and stall. Relatedly,
+   `DraggableNode.update` only resets pointer-input handling when `state`/`orientation`/
+   `reverseDirection`/`enabled` change — new lambda identities per recomposition don't —
+   so the recomposition every swap triggers doesn't kill the in-flight gesture, as long as
+   `key(instance.id)` keeps the node itself alive across the reorder (ADR-021 attempt #3's
+   bug, still load-bearing here).
+
+**Alternatives considered:** (1) Keep ADR-021's move-up/move-down buttons. (2)
+`LazyColumn` plus a third-party reorderable library. (3) Long-press-then-drag on the
+handle. (4) Drag anywhere on the row instead of a dedicated handle. (5) Animate the
+dragged row settling into its final slot on drop, instead of snapping.
+
+**Why:** (1) was rejected because a drag handle was the original ask, and ADR-021's
+scope-down was explicitly a "stop spending fixes on this" call, not a judgment that
+buttons are the better UI — the reasoning behind it (five failed attempts) doesn't survive
+having found the actual mechanism, and the buttons' one real advantage, being reachable
+without a drag gesture, is preserved as accessibility actions. (2) still means a new
+dependency for something now working in ~60 lines of foundation-only code (ADR-010/ADR-011).
+(3) is unnecessary once the handle claims the gesture at down-time, and a hold requirement
+with nothing hinting at it was one of the things that made attempt #4 feel broken. (4) was
+rejected because a whole-row drag has to be distinguishable from a scroll of the list —
+which is exactly the problem long press normally solves, reintroducing (3) — and the row
+also holds a text field with its own taps to worry about; a dedicated handle keeps "drag
+here = reorder, anywhere else = scroll" unambiguous. (5) was left out as polish, not
+mechanism: on drop the row snaps up to half a row's height into place, which is standard
+settle behavior, and adding an animation would mean holding a second, animated offset
+alongside the real one purely for looks.
+
+**Not verified on a device.** The mechanism above is read out of the actual foundation/ui
+sources rather than recalled, and the app builds and its unit tests pass, but no
+device/emulator exists in this working environment (`TESTING.md`) — gesture feel,
+thresholds, and the auto-scroll rate can only really be judged by hand. See `UI_UX.md`'s
+known-issues list for what to look at first.
+
+---
+
+## ADR-023: Display order of instances is owned by the DAO query, not by each consumer
+
+**Decision:** `TagInstanceDao.observeForDay`/`observeForRange` gained `ORDER BY sortOrder`,
+and that order is now a documented contract: `TagInstanceRepository.observeDayGroups`
+returns each group's `instances` in **display order**, and consumers render them as given
+rather than sorting again. `TagDisplayGroups.summarize` already preserved the order it was
+handed, so `movie: [terminator, dune]` in the day capsule now follows a manual reorder; the
+client-side `sortedBy { it.sortOrder }` in `ValuedInstanceList` and
+`sortedBy { it.createdAt }` in the (renamed) `TimeOrderedInstanceList` are both gone. A
+unit test (`valued_summaryFollowsRowOrder_soAManualReorderShowsInTheCapsule`) pins the
+summarizer half of the contract.
+
+**Why:** ADR-021/ADR-022's reordering only ever affected the instance-list sheet, because
+the sheet sorted its own rows while the capsule summary rendered whatever order SQLite
+happened to return — the queries had no `ORDER BY` at all, so in practice insertion
+(rowid) order. Reordering values therefore appeared to do nothing once the sheet closed,
+which is the wrong half of the feature to have working. Two independent notions of "the
+order" were the root cause, so the fix is one owner rather than a second sort bolted onto
+the capsule path: the DAO decides, everything downstream inherits.
+
+**Alternatives considered:** (1) Sort inside `summarize` (or in `toDisplayGroups`) instead
+of in SQL. (2) Leave the queries unordered and sort in every consumer. (3) Order by
+`sortOrder, createdAt` as a tiebreak.
+
+**Why:** (1) would keep the ordering rule in Kotlin next to the aggregation it feeds,
+which fits ADR-004's "aggregate in Kotlin, not SQL" — but ordering isn't aggregation, and
+`summarize` is also called on already-filtered lists from `CalendarViewModel`
+(`excludingInstances`, ADR-019), so it would re-sort on paths that don't need it while
+still leaving the raw `instances` list unordered for anything else that reads it. (2) is
+what was there and is exactly what broke. (3) is unnecessary: `sortOrder` is seeded from
+`createdAt` (a millisecond timestamp) and rewritten to sequential indices only within one
+tag+day group, so collisions would need two inserts in the same millisecond for the same
+tag — and if that ever happened, either order is equally correct.
+
+---
+
+## ADR-024: ViewModels get unit tests; `kotlinx-coroutines-test` joins the test classpath
+
+**Decision:** Reverses `TESTING.md`/`ARCHITECTURE.md`'s earlier "ViewModels are
+deliberately not tested" position. `CalendarViewModel` and `TagsViewModel` now have unit
+tests, which means one new test dependency (`kotlinx-coroutines-test`, pinned to the
+coroutines version already on the runtime classpath transitively) and two small pieces of
+test scaffolding: `MainDispatcherRule` (swaps `Dispatchers.Main` for an
+`UnconfinedTestDispatcher`, without which `viewModelScope` doesn't work off-device) and
+`TestScope.keepSubscribed`, since every `uiState` is `SharingStarted.WhileSubscribed` and
+would otherwise never leave its initial value. Collaborators are faked at the *repository
+interface* boundary (`FakeTagRepository`, `FakeTagInstanceRepository`, backed by
+`MutableStateFlow`), extending the existing fake-the-DAO pattern one layer up rather than
+introducing a mocking library. The Android Studio template's `ExampleUnitTest` /
+`ExampleInstrumentedTest` boilerplate is deleted at the same time.
+
+**Why:** the original reasoning was specific and, at the time, correct — the ViewModels
+were pass-throughs, so a test would only have re-asserted repository behaviour already
+covered a layer down. That stopped being true: ADR-019 put a delay-delete state machine in
+`CalendarViewModel` (optimistic filtering of not-yet-deleted instances, plus a
+flush-the-previous-pending-removal rule that's easy to break into "hidden forever but
+never actually deleted"), ADR-021 added a single-shot `pendingValuedTagEdit` signal, and
+ADR-022 added reorder write-through. None of that logic exists in the repositories, so
+none of it was covered anywhere. The decision was conditional from the start — its own
+wording was "if a ViewModel ever grows real logic of its own, that's the point to
+reconsider" — so this is the trigger firing, not a change of principle.
+
+**Alternatives considered:** (1) Keep ViewModels untested and push the logic down into the
+data layer (or a domain layer, per ADR-002) where the existing test setup already reaches.
+(2) Test through the UI with Compose UI tests instead. (3) Add a mocking library (MockK)
+rather than hand-writing repository fakes.
+
+**Why:** (1) is the more architecturally pure answer for the pending-removal logic and
+worth revisiting if it grows further, but it isn't free — `PendingRemoval` is UI state (it
+exists to make an *undo affordance* work, and dies with the ViewModel by design), so
+pushing it into the data layer would mean a repository holding "deleted, probably" rows,
+which is a worse model than a tested ViewModel. (2) needs a device/emulator, which this
+working environment doesn't have (`TESTING.md`), and would test the snackbar wiring rather
+than the state machine. (3) buys little here: the fakes are ~60 lines each, they double as
+readable in-memory reference implementations, and a `MutableStateFlow`-backed fake models
+"a write shows up in the next emission" far more naturally than stubbed return values —
+which is exactly the behaviour these tests need to assert.

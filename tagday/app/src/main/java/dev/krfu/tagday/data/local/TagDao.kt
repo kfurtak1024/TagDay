@@ -13,7 +13,12 @@ interface TagDao {
     @Query("SELECT * FROM tags ORDER BY name COLLATE NOCASE")
     fun observeAll(): Flow<List<Tag>>
 
-    @Query("SELECT * FROM tags WHERE name LIKE '%' || :query || '%' ORDER BY name COLLATE NOCASE")
+    /**
+     * [query] must already have LIKE's wildcards escaped — `TagRepositoryImpl` does it via
+     * `escapeLikeWildcards`. Without the ESCAPE clause, a typed `%` matched everything and
+     * a typed `_` matched any single character.
+     */
+    @Query("SELECT * FROM tags WHERE name LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY name COLLATE NOCASE")
     fun observeFiltered(query: String): Flow<List<Tag>>
 
     @Query("SELECT EXISTS(SELECT 1 FROM tags WHERE name = :name COLLATE NOCASE AND id != :excludingId)")

@@ -134,7 +134,13 @@ Management screen for the tag repository.
   instance in a group simply removes that instance, and the group disappears from the
   day's display once empty. **Simple** groups have nothing to edit (presence/absence
   only) and don't respond to a tap at all — removal is whole-group only, via the "x"
-  below (ADR-018).
+  below (ADR-018). **Valued** groups additionally have an "add value" row below the
+  list, for adding another instance without leaving the sheet; **Rated** has no
+  equivalent add control, only edit/remove of existing instances (ADR-020). **Valued**
+  values can also be manually reordered by dragging each row's handle (ADR-022) — that
+  order is also the order the day's capsule summary lists them in (ADR-023) — and both
+  types' lists scroll (with a scrollbar) instead of overflowing once there are more
+  instances than fit in the sheet's fixed height (ADR-021).
 - **Quick-removing a whole group**: each group's capsule also has an inline "x" that
   removes *all* of that tag's instances for the day in one tap, regardless of count
   (`walk (2)` → tap → gone entirely) — a fast path for "I didn't mean to tag this today

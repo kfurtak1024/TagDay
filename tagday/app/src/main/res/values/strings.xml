@@ -52,6 +52,11 @@
 
     <string name="day_instances_sheet_remove_content_description">Remove</string>
     <string name="day_instances_sheet_value_placeholder">Value</string>
+    <string name="day_instances_sheet_add_value_content_description">Add value</string>
+    <string name="day_instances_sheet_reorder_content_description">Reorder</string>
+    <string name="day_instances_sheet_move_up_content_description">Move up</string>
+    <string name="day_instances_sheet_move_down_content_description">Move down</string>
+    <string name="day_instances_sheet_close_content_description">Close</string>
     <string name="day_capsule_remove_content_description">Remove %1$s</string>
     <string name="day_rating_star_content_description">%1$d stars</string>
 

@@ -44,6 +44,7 @@ fun TagQuickEntryBar(
     allTags: List<Tag>,
     onAddExistingTag: (tagId: Long) -> Unit,
     onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
+    onCreateValuedTag: (name: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -54,10 +55,14 @@ fun TagQuickEntryBar(
     } else {
         allTags.find { it.name.equals(trimmedName, ignoreCase = true) }
     }
+    // Capped by count, not height, and forced single-line below: a partial, clipped row
+    // (e.g. a height cap that lands mid-item) reads as the input field overlapping the
+    // list rather than as "scroll for more".
     val suggestions = if (trimmedName.isEmpty()) {
         emptyList()
     } else {
         allTags.filter { it.name.contains(trimmedName, ignoreCase = true) }
+            .take(MAX_VISIBLE_SUGGESTIONS)
     }
 
     fun submit() {
@@ -73,48 +78,52 @@ fun TagQuickEntryBar(
 
     Surface(modifier = modifier.fillMaxWidth().imePadding(), tonalElevation = 3.dp) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            when {
-                suggestions.isNotEmpty() -> Column {
-                    // Capped by count, not height, and forced single-line: a partial,
-                    // clipped row (e.g. a height cap that lands mid-item) reads as the
-                    // input field overlapping the list rather than as "scroll for more".
-                    suggestions.take(MAX_VISIBLE_SUGGESTIONS).forEach { tag ->
-                        ListItem(
-                            headlineContent = {
-                                Text(text = tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            },
-                            leadingContent = { ColorDot(color = tag.color) },
-                            modifier = Modifier.clickable {
-                                onAddExistingTag(tag.id)
-                                query = ""
-                            },
-                        )
-                    }
-                }
+            suggestions.forEach { tag ->
+                ListItem(
+                    headlineContent = {
+                        Text(text = tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    },
+                    leadingContent = { ColorDot(color = tag.color) },
+                    modifier = Modifier.clickable {
+                        onAddExistingTag(tag.id)
+                        query = ""
+                    },
+                )
+            }
 
-                exactMatch == null && parsed is ParsedTagInput.Ambiguous -> Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.padding(vertical = 8.dp),
-                ) {
-                    TagType.entries.forEach { type ->
-                        FilterChip(
-                            selected = false,
-                            onClick = {
-                                onCreateTag(trimmedName, type, null, null)
-                                query = ""
-                            },
-                            label = { Text(type.label()) },
-                        )
-                    }
-                }
-
-                exactMatch == null && (parsed is ParsedTagInput.Rated || parsed is ParsedTagInput.Valued) -> {
-                    val type = if (parsed is ParsedTagInput.Rated) TagType.RATED else TagType.VALUED
-                    Text(
-                        text = stringResource(R.string.day_quick_entry_type_hint, type.label()),
-                        style = MaterialTheme.typography.labelMedium,
+            // Shown whenever there's no exact match, regardless of whether suggestions
+            // are also showing — a partial match doesn't mean the typed name shouldn't
+            // also be creatable as its own new tag.
+            if (exactMatch == null) {
+                when (parsed) {
+                    is ParsedTagInput.Ambiguous -> Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(vertical = 8.dp),
-                    )
+                    ) {
+                        TagType.entries.forEach { type ->
+                            FilterChip(
+                                selected = false,
+                                onClick = {
+                                    // Valued has no "nothing set yet" display (unlike
+                                    // Rated's unrated fallback, ADR-008), so it opens the
+                                    // instance sheet to type a real value instead of
+                                    // creating a value-less instance up front (ADR-021).
+                                    if (type == TagType.VALUED) {
+                                        onCreateValuedTag(trimmedName)
+                                    } else {
+                                        onCreateTag(trimmedName, type, null, null)
+                                    }
+                                    query = ""
+                                },
+                                label = { Text(type.label()) },
+                            )
+                        }
+                    }
+
+                    // Type was inferred from the syntax, so say which one submitting will make.
+                    is ParsedTagInput.Rated -> InferredTypeHint(TagType.RATED)
+                    is ParsedTagInput.Valued -> InferredTypeHint(TagType.VALUED)
+                    null -> Unit
                 }
             }
 
@@ -135,6 +144,15 @@ fun TagQuickEntryBar(
             }
         }
     }
+}
+
+@Composable
+private fun InferredTypeHint(type: TagType, modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.day_quick_entry_type_hint, type.label()),
+        style = MaterialTheme.typography.labelMedium,
+        modifier = modifier.padding(vertical = 8.dp),
+    )
 }
 
 @Composable

@@ -28,4 +28,5 @@ data class TagInstance(
     val rating: Int? = null,
     val value: String? = null,
     val createdAt: Long,
+    val sortOrder: Long = 0,
 )

@@ -141,16 +141,40 @@ on `CalendarViewModel`'s `zoomLevel` state.
   + count), Valued (per-value list with per-value counts). A Rated group with no rated
   instances yet (freshly added, unrated) displays like a Simple group until an instance
   is rated — see ADR-008 in `DECISIONS.md`.
-- **Tap a row** → for **Rated or Valued** groups only, opens a bottom sheet listing the
-  individual instances behind that group, each independently editable and removable (per
-  the resolved "manage individual instances" decision in `FEATURES.md`). Rated instances
-  show an editable 1–5 `StarInput` (tap a star to set/change that instance's rating, at
-  any time — no requirement to rate at creation); Valued instances show an editable text
-  field for that instance's value. Both keep a delete icon per instance. **Simple**
-  capsules don't respond to a tap at all (`TagGroupCapsule`'s `clickable` is
-  `enabled = type != SIMPLE`) — there's no per-instance state to edit, only presence, so
-  the sheet would have nothing to offer beyond what the "x" below already does. See
-  ADR-018.
+- **Tap a row** → for **Rated or Valued** groups only, opens a bottom sheet, fixed at
+  50% of screen height and **not** dismissible by dragging, back press, or scrim tap — an
+  explicit close (✕) button next to the tag name is the only way to close it (ADR-021).
+  It lists the individual instances behind that group, each independently editable and
+  removable (per the resolved "manage individual instances" decision in `FEATURES.md`),
+  in a scrollable region (with a scrollbar once they overflow the fixed height) for both
+  types. Rated instances show an editable 1–5 `StarInput` (tap a star to set/change that
+  instance's rating, at any time — no requirement to rate at creation), plus a timestamp
+  below each row; Valued instances show an editable text field for that instance's
+  value, with no timestamp (dropped per ADR-021 — clutter for a type where the list is
+  reordered by hand, not by time) — the field can be typed/cleared freely, but it never
+  persists a blank value (ADR-021), same rule `AddValueRow` already applied to new
+  values. Both keep a delete icon per instance. **Simple**
+  capsules don't respond to a tap at all (`TagGroupCapsule`'s `clickable` is `enabled =
+  type != SIMPLE`) — there's no per-instance state to edit, only presence, so the sheet
+  would have nothing to offer beyond what the "x" below already does. See ADR-018.
+  **Valued** sheets additionally have: a leading **drag handle** per row (`DragHandle` in
+  `ValuedInstanceList`) for manually reordering values, persisted via
+  `TagInstance.sortOrder`. Press the handle and drag vertically — the row lifts (raised
+  container color, drawn above its neighbours) and follows the finger, trading places with
+  a neighbour once it passes half of that neighbour's height, and the new order is written
+  once on drop. Holding the row near the top or bottom edge auto-scrolls the list, since a
+  drag in progress owns the touch and the list can't scroll itself then; dragging anywhere
+  *other* than the handle scrolls the list as normal. Screen readers get the same reorder
+  as move-up/move-down accessibility actions on the handle, since there's no way to
+  perform a touch-drag through one. The order applies everywhere the values are listed,
+  the capsule summary included — instances reach the UI already in display order and are
+  rendered as given, rather than each screen sorting for itself (ADR-023). Reordering went
+  through several failed attempts before this one — see ADR-021 for what didn't work and
+  ADR-022 for the mechanism that does.
+  Valued sheets also have a fixed row below the instance list — a text field + add button
+  (`AddValueRow`) for adding another value without leaving the sheet. **Rated** has
+  neither the handle nor the add-row, staying edit/remove-only. See ADR-020, ADR-021,
+  ADR-022.
 - **Capsule "x"**: each group's capsule also has its own inline "x" (`TagGroupCapsule` in
   `DayContent.kt`), separate from the row-tap above — tapping it removes *all* of that
   tag's instances for the day, regardless of count, with no confirmation dialog (a fast
@@ -235,11 +259,14 @@ to open.
 - **Type inference from syntax**, applied only when the typed name has no existing-tag
   match (an exact case-insensitive name match always just adds a blank instance to that
   tag, per the rule above — any `:suffix` typed alongside an exact match is ignored):
-  - `name` alone (no `:`) → ambiguous. The suggestions area is replaced with a row of
-    three filter chips (Simple / Rated / Valued, via `TagType.label()`); tapping one
-    both picks the type and finishes creating the tag in one step (blank first
-    instance — rating/value, for Rated/Valued, stay settable later via the instance-list
-    sheet, same as today).
+  - `name` alone (no `:`) → ambiguous. A row of three filter chips (Simple / Rated /
+    Valued, via `TagType.label()`) shows alongside any suggestions (not instead of them —
+    ADR-021). Tapping **Simple** or **Rated** creates the tag with a blank first instance
+    (rating stays settable later via the instance-list sheet, same as today — ADR-008).
+    Tapping **Valued** instead creates the tag with *no* instance yet and opens the
+    instance-list sheet directly for it, so the user types the first real value there —
+    a Valued instance with no value has no meaningful display, unlike Rated's "unrated"
+    fallback (ADR-021).
   - `name:***` (one or more literal `*` characters, nothing else, after the colon) →
     unambiguous. Creates a **Rated** tag and seeds the first instance's rating with the
     star count (clamped to 5 if more than five `*` are typed). No picker shown — a hint
@@ -346,3 +373,27 @@ not scoped by this doc; don't design ahead of it.
   the quick-entry bar, but this hasn't been confirmed on a running device/emulator (none
   available in this working environment — see `TESTING.md`); worth a quick look next
   time this screen is run on a device.
+- **The Valued instance sheet (ADR-020/ADR-021/ADR-022) has never run on a device.** No
+  device/emulator exists in this working environment (`TESTING.md`), so everything about
+  it — including the drag-to-reorder, which took six attempts and whose final mechanism is
+  read directly out of the `androidx.compose.foundation`/`androidx.compose.ui` 1.11.4
+  sources in the Gradle cache rather than recalled (see ADR-022) — is unexercised beyond
+  compiling. Gesture *feel* in particular can't be judged here at all. Worth a deliberate
+  pass next time this screen is run on a device:
+  - Drag a row up and down past several neighbours, and confirm plain scrolling (finger
+    anywhere but the handle) still works, including immediately after a drag.
+  - Drag to a position that starts off-screen, to exercise the edge auto-scroll — check
+    the rate feels controllable rather than runaway, and that the row keeps swapping
+    correctly as the list moves under it.
+  - Drag at both ends of the list (nothing to swap with), and tap the handle without
+    moving (should be a no-op, not a spurious reorder write).
+  - Reorder twice in quick succession, to check the second order sticks rather than being
+    reverted by the first reorder's Room emission landing late.
+  - Reopen the sheet (and the day) afterwards and confirm the order actually persisted.
+  - With TalkBack on, confirm the handle exposes its move-up/move-down actions and that
+    they're absent at the respective ends of the list.
+  - Many values with scrolling: confirm the scrollbar thumb tracks the visible position at
+    various scroll depths, not just at the very top/bottom.
+  - Try to clear a value to blank and confirm it snaps back rather than persisting empty;
+    confirm the sheet resists drag/back/scrim dismissal and that the close button works;
+    and add a brand-new Valued tag end to end.

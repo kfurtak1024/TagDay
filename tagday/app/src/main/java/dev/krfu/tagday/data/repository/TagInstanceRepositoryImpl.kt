@@ -26,19 +26,25 @@ class TagInstanceRepositoryImpl @Inject constructor(
         }
 
     override suspend fun addInstance(tagId: Long, date: Int, rating: Int?, value: String?) {
+        val now = System.currentTimeMillis()
         tagInstanceDao.insert(
             TagInstance(
                 tagId = tagId,
                 date = date,
                 rating = rating,
                 value = value,
-                createdAt = System.currentTimeMillis(),
+                createdAt = now,
+                sortOrder = now,
             ),
         )
     }
 
     override suspend fun updateInstance(instance: TagInstance) {
         tagInstanceDao.update(instance)
+    }
+
+    override suspend fun updateInstances(instances: List<TagInstance>) {
+        tagInstanceDao.updateAll(instances)
     }
 
     override suspend fun removeInstances(instances: List<TagInstance>) {

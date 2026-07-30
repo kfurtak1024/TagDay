@@ -56,7 +56,8 @@ from this row.
 | `date` | `Int` (epoch day) | Stored as an epoch day (not a date string) so range queries (`BETWEEN`) are cheap and index-friendly. |
 | `rating` | `Int?` | 1–5, only meaningful when the parent `Tag.type == RATED`. Nullable — a Rated instance can be seeded at creation (quick-entry shorthand `name:***`) or left "unrated" and set later. |
 | `value` | `String?` | Free text, only meaningful when the parent `Tag.type == VALUED`. Nullable for the same reason — seedable at creation (`name:text`) or set later. |
-| `createdAt` | `Long` (epoch millis) | Tie-breaker for ordering multiple instances added the same day. |
+| `createdAt` | `Long` (epoch millis) | When the instance was added. Displayed as a timestamp on Rated rows in the instance-list sheet. |
+| `sortOrder` | `Long` | **Display order** within a tag+day group. Seeded to the same value as `createdAt` on insert, so instances start out in creation order; rewritten to small sequential indices (`0, 1, 2, …`) when a Valued group is reordered by hand, which keeps later inserts (epoch millis) sorting after reordered ones for free. Every read path orders by it — see § Display order. Added in ADR-021/ADR-022. |
 
 ```kotlin
 @Entity(
@@ -81,7 +82,8 @@ data class TagInstance(
     val date: Int,
     val rating: Int? = null,
     val value: String? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    val sortOrder: Long = 0,
 )
 ```
 
@@ -111,6 +113,15 @@ realistically has, this is simpler to read, test, and change than building the
 equivalent in a SQL query, and it keeps the aggregation logic in one place shared by
 Day/Week/Month/Year views alike.
 
+## Display order
+
+`sortOrder` is the single owner of the order instances appear in — the two
+`TagInstanceWithTag` queries carry `ORDER BY sortOrder`, and everything downstream
+(`TagInstanceRepositoryImpl.toDisplayGroups`, `TagDisplayGroups.summarize`, the Day
+capsules, the instance-list sheet) renders that order as given rather than sorting for
+itself. That's deliberate: while the sheet sorted its own rows and the capsule summary
+didn't, a manual reorder showed up in one and not the other. See ADR-023.
+
 ## DAOs
 
 ### `TagDao`
@@ -121,7 +132,8 @@ interface TagDao {
     @Query("SELECT * FROM tags ORDER BY name COLLATE NOCASE")
     fun observeAll(): Flow<List<Tag>>
 
-    @Query("SELECT * FROM tags WHERE name LIKE '%' || :query || '%' ORDER BY name COLLATE NOCASE")
+    // `query` arrives with LIKE wildcards already escaped by TagRepositoryImpl.
+    @Query("SELECT * FROM tags WHERE name LIKE '%' || :query || '%' ESCAPE '\\' ORDER BY name COLLATE NOCASE")
     fun observeFiltered(query: String): Flow<List<Tag>>
 
     @Query("SELECT EXISTS(SELECT 1 FROM tags WHERE name = :name COLLATE NOCASE AND id != :excludingId)")
@@ -142,11 +154,11 @@ interface TagDao {
 @Dao
 interface TagInstanceDao {
     @Transaction
-    @Query("SELECT * FROM tag_instances WHERE date = :date")
+    @Query("SELECT * FROM tag_instances WHERE date = :date ORDER BY sortOrder")
     fun observeForDay(date: Int): Flow<List<TagInstanceWithTag>>
 
     @Transaction
-    @Query("SELECT * FROM tag_instances WHERE date BETWEEN :start AND :end")
+    @Query("SELECT * FROM tag_instances WHERE date BETWEEN :start AND :end ORDER BY sortOrder")
     fun observeForRange(start: Int, end: Int): Flow<List<TagInstanceWithTag>> // Week chips
 
     @Query("SELECT * FROM tag_instances WHERE tagId = :tagId AND date BETWEEN :start AND :end")
@@ -154,17 +166,31 @@ interface TagInstanceDao {
 
     @Insert suspend fun insert(instance: TagInstance): Long
     @Update suspend fun update(instance: TagInstance)
+    @Update suspend fun updateAll(instances: List<TagInstance>) // whole-group sortOrder rewrite — see ADR-022
     @Delete suspend fun deleteAll(instances: List<TagInstance>) // capsule "x" (whole group) or a single instance — see ADR-019
 }
 ```
 
-## Open notes for `ARCHITECTURE.md`
+## Schema history & migrations
 
-- Whether `Tag` / `TagInstance` are used directly as UI-facing models, or mapped to
-  lightweight UI models (e.g. a `TagDisplayGroup` for the aggregated Day-view rows) —
-  likely the latter just for the grouped display, without a full domain layer.
-- Schema history: `version = 1` was the original (pre-M1-completion) shape with `type`
-  on `TagInstance`. Moving `type` to `Tag` bumps this to `version = 2`. Since this
-  happened during local M1 development with no real user data to preserve, the move
-  used `fallbackToDestructiveMigration()` rather than a written `Migration` — a real
-  migration path should be introduced once the app has real installs to protect.
+| Version | Change |
+|---|---|
+| 1 | Original (pre-M1-completion) shape, with `type` on `TagInstance`. |
+| 2 | `type` moved to `Tag`, dropped from `TagInstance` — ADR-007. |
+| 3 | `TagInstance.sortOrder` added — ADR-021. |
+
+Every one of those bumps relied on `fallbackToDestructiveMigration(dropAllTables = true)`
+in `di/DatabaseModule.kt` rather than a written `Migration`, which was defensible while
+the only data at stake was local development data.
+
+> **This is now the project's biggest data-loss risk.** Destructive fallback means the
+> *next* schema change silently wipes every tag and instance on any device that has the
+> app installed — including the developer's own day-to-day install, which by now holds
+> real diary data. Writing real `Migration`s (and `exportSchema = true` plus a
+> `schemas/` directory, so Room can verify them) should happen *before* the next schema
+> change, not after. Note that Android's auto-backup is not a substitute: the manifest
+> has `allowBackup="true"` with the template's empty rules, so a restore can bring back
+> a database file from an older schema version and hit exactly the same destructive path.
+
+Which resolves the earlier open note here: `Tag`/`TagInstance` are *not* used directly as
+UI-facing models — `TagDisplayGroup` (`data/model/`) is, per `ARCHITECTURE.md`.

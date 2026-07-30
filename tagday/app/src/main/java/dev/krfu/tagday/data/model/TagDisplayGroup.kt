@@ -8,6 +8,7 @@ data class TagDisplayGroup(
     val tagName: String,
     val color: Int,
     val type: TagType,
+    /** In display order — see `TagInstanceRepository.observeDayGroups`. */
     val instances: List<TagInstance>,
     val summary: String,
 )

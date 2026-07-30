@@ -57,6 +57,7 @@ fun CalendarContent(
     onNavigateToSettings: () -> Unit,
     onAddExistingTag: (tagId: Long) -> Unit,
     onCreateTag: (name: String, type: TagType, rating: Int?, value: String?) -> Unit,
+    onCreateValuedTag: (name: String) -> Unit,
     onGroupClick: (TagDisplayGroup) -> Unit,
     onGroupQuickRemove: (TagDisplayGroup) -> Unit,
     onUndoRemoval: () -> Unit,
@@ -164,6 +165,7 @@ fun CalendarContent(
                     allTags = uiState.allTags,
                     onAddExistingTag = onAddExistingTag,
                     onCreateTag = onCreateTag,
+                    onCreateValuedTag = onCreateValuedTag,
                 )
             }
         },

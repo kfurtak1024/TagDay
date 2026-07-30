@@ -63,7 +63,17 @@ returns to today from Day zoom only; Week/Month/Year instead highlight today's
 row/cell/tile in place, sized to what each density has room for. Day zoom has Simple,
 Rated, and Valued tags with full grouping/aggregation; tapping a Rated or Valued group
 opens a bottom sheet for per-instance editing/removal, Simple groups don't respond to a
-tap (nothing to edit — ADR-018). Both removal paths (that sheet's per-instance delete,
+tap (nothing to edit — ADR-018). Valued sheets also have an in-sheet "add value" row for
+adding a new instance without leaving the sheet; Rated has no equivalent, staying
+edit/remove-only (ADR-020). The sheet is a fixed 50% of screen height and only closes via
+an explicit close button (not drag/back/scrim); Valued rows also drop their timestamp,
+and both types' lists scroll (with a scrollbar) within that fixed height (ADR-021).
+Valued rows reorder by dragging a leading handle, with edge auto-scroll while dragging and
+move-up/move-down kept as accessibility actions on that handle — `Modifier.draggable` with
+`startDragImmediately`, which is what finally made a drag handle coexist with the list's
+own scrolling after five earlier attempts failed (ADR-022 supersedes ADR-021's
+move-buttons; read both before touching that gesture). Both
+removal paths (that sheet's per-instance delete,
 and each capsule's inline "x" for whole-group removal) are delay-delete: a snackbar with
 an "Undo" action holds the actual deletion for a few seconds (`PendingRemoval`, ADR-019).
 A small Past/Today/Future label sits on the header card (`TemporalColors`, ADR-017);
@@ -74,6 +84,18 @@ overview; Month/Year are a single-tag heatmap (instance count only, `TagPickerDr
 top-right icon) is management-only, with an in-house HSV color picker (ADR-011). A
 `SettingsScreen` shell also exists (reached via a second top-right icon, next to Tags) —
 empty placeholder for now, scaffolded ahead of any specific content.
+
+Instance display order is owned by `TagInstanceDao`'s `ORDER BY sortOrder`, not by each
+consumer sorting for itself (ADR-023) — that's what makes a manual reorder show up in the
+day capsule as well as in the sheet. Unit tests cover the repositories, both ViewModels
+(ADR-024) and the pure date/parsing utilities; Composables and gesture code are the
+deliberate gap, since instrumented tests need a device this environment doesn't have. See
+`docs/TESTING.md`.
+
+**Before changing the Room schema, read `docs/DATA_MODEL.md` § Schema history &
+migrations.** The database still uses `fallbackToDestructiveMigration(dropAllTables =
+true)`, so the next `version` bump wipes real user data unless a real `Migration` is
+written first.
 
 Beyond M0-M4, the project is now in an open-ended **"feature complete"** phase (not
 labeled v1 — that term is reserved for an eventual public Play Store release, which

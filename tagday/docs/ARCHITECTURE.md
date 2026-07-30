@@ -7,23 +7,23 @@ this file expands on (no domain layer until earned, single module until earned).
 ## Layers (v1)
 
 ```
-┌─────────────────────────────────────────┐
-│  UI layer                                │
-│  Compose screens + ViewModels            │
-│  StateFlow<UiState> out, event lambdas in│
-└───────────────────┬───────────────────────┘
-                    │
-┌───────────────────▼───────────────────────┐
-│  Data layer                              │
-│  Repositories: CRUD + mapping raw Room    │
-│  rows into display-ready models           │
-│  (e.g. grouping/aggregation for Day view) │
-└───────────────────┬───────────────────────┘
-                    │
-┌───────────────────▼───────────────────────┐
-│  Local layer                             │
-│  Room: TagDao, TagInstanceDao, entities   │
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│  UI layer                                  │
+│  Compose screens + ViewModels              │
+│  StateFlow<UiState> out, event lambdas in  │
+└─────────────────────┬──────────────────────┘
+                      │
+┌─────────────────────▼──────────────────────┐
+│  Data layer                                │
+│  Repositories: CRUD + mapping raw Room     │
+│  rows into display-ready models            │
+│  (e.g. grouping/aggregation for Day view)  │
+└─────────────────────┬──────────────────────┘
+                      │
+┌─────────────────────▼──────────────────────┐
+│  Local layer                               │
+│  Room: TagDao, TagInstanceDao, entities    │
+└────────────────────────────────────────────┘
 ```
 
 **No domain layer yet.** This resolves the open item from `DATA_MODEL.md`: `Tag` /
@@ -60,44 +60,50 @@ before.
 
 ```
 dev.krfu.tagday/
-├── TagDayApplication.kt
+├── TagDayApplication.kt          # @HiltAndroidApp
+├── MainActivity.kt               # single activity: enableEdgeToEdge + setContent
 ├── di/
-│   ├── DatabaseModule.kt        # provides Room DB + DAOs
-│   └── RepositoryModule.kt      # binds Repository interfaces to impls
+│   ├── DatabaseModule.kt         # provides Room DB + DAOs
+│   └── RepositoryModule.kt       # binds Repository interfaces to impls
 ├── data/
 │   ├── local/
 │   │   ├── TagDayDatabase.kt
 │   │   ├── TagDao.kt
 │   │   ├── TagInstanceDao.kt
 │   │   └── entity/
-│   │       ├── Tag.kt
-│   │       └── TagInstance.kt
+│   │       ├── Tag.kt, TagInstance.kt, TagType.kt
+│   │       └── TagInstanceWithTag.kt      # @Embedded + @Relation join row
 │   ├── repository/
-│   │   ├── TagRepository.kt         # interface
+│   │   ├── TagRepository.kt              # interface
 │   │   ├── TagRepositoryImpl.kt
-│   │   ├── TagInstanceRepository.kt # interface
+│   │   ├── TagInstanceRepository.kt      # interface
 │   │   └── TagInstanceRepositoryImpl.kt
 │   └── model/
-│       └── TagDisplayGroup.kt   # UI-facing display model (see above)
-├── backup/
-│   ├── DriveBackupService.kt
-│   └── DriveRestoreService.kt
+│       ├── TagDisplayGroup.kt            # UI-facing display model (see above)
+│       └── TagDisplayGroups.kt           # summarize() + excludingInstances(), shared
+│                                         # by the repository and CalendarViewModel
 └── ui/
-    ├── calendar/
-    │   ├── CalendarScreen.kt, CalendarViewModel.kt  # shared across all 4 zoom levels
-    │   ├── CalendarUiState.kt, CalendarPeriodData.kt, ZoomLevel.kt, CalendarDateRanges.kt
-    │   ├── HeatmapDayCell.kt, TagPickerDropdown.kt  # shared Month/Year pieces
-    │   ├── day/       # DayContent — Day zoom's stateless content
-    │   ├── week/      # WeekContent
-    │   ├── month/     # MonthContent (+ MonthGrid, reused by year/)
-    │   └── year/      # YearContent
-    ├── tags/          # TagsScreen, TagsViewModel
-    ├── settings/      # SettingsScreen — empty placeholder for now, see UI_UX.md
-    ├── backup/        # manual export/import UI — not yet built; may end up living
-    │                  # under settings/ instead of its own package, undecided (M5)
-    ├── navigation/     # NavHost, nav graph
-    └── theme/         # Material 3 theme, color palette
+    ├── calendar/                 # one screen for all four zoom levels
+    │   ├── CalendarScreen.kt, CalendarViewModel.kt, CalendarContent.kt
+    │   ├── CalendarUiState.kt, CalendarPeriodData.kt, PendingRemoval.kt
+    │   ├── CalendarDateRanges.kt         # pure date math, unit-tested
+    │   ├── ZoomLevel.kt, ZoomLevelLabel.kt, ZoomLevelPicker.kt
+    │   ├── HeatmapDayCell.kt, TagPickerDropdown.kt   # shared Month/Year pieces
+    │   ├── day/    # DayContent, InstanceListSheet, TagQuickEntryBar,
+    │   │           # ParsedTagInput, StarInput, TagTypeLabel
+    │   ├── week/   # WeekContent
+    │   ├── month/  # MonthContent (+ MonthGrid, reused by year/)
+    │   └── year/   # YearContent
+    ├── tags/       # TagsScreen, TagsViewModel, TagsUiState, TagsContent,
+    │               # RenameTagDialog, ColorPickerDialog
+    ├── settings/   # SettingsScreen, SettingsContent — empty placeholder, see UI_UX.md
+    ├── navigation/ # TagDayApp, TagDayNavHost, TagDayDestination
+    └── theme/      # Theme.kt, Color.kt, Type.kt, TagPalette.kt, TemporalColors.kt
 ```
+
+**Not built yet**, but planned homes rather than invented ones: a `backup/` package for
+Drive backup/restore services and its UI entry point (M5, `BACKUP_SYNC.md`) — the UI half
+may end up under `settings/` instead of its own `ui/backup/` package, still undecided.
 
 ## State management
 
@@ -125,23 +131,29 @@ Standard MVVM + unidirectional data flow, kept intentionally simple:
 
 ## Testability
 
-In practice, unit tests target the **Repository** layer, not ViewModels: each
-`XyzRepositoryImpl` is tested against a small hand-written fake of its DAO interface
-(an anonymous `object : XyzDao` implementing only the methods exercised, throwing
-`NotImplementedError()` for the rest), exercising real aggregation/mapping logic with
-no Room or Android framework dependency. ViewModels are deliberately left untested —
-they're thin coordinators (wire a Repository call to a `StateFlow`, launch a
-`viewModelScope` suspend call) with no branching logic of their own worth isolating;
-testing them would need `kotlinx-coroutines-test` (`Dispatchers.setMain`), which isn't
-part of this project's test setup. Pure, non-Compose utility logic (parsing, date-range
-math) gets its own plain-function unit tests alongside the Repository tests. Full
-conventions live in `TESTING.md`.
+Unit tests cover the **Repository** layer, the **ViewModels**, and pure utility logic,
+all off-device with fakes rather than mocks:
+
+- Each `XyzRepositoryImpl` is tested against a small hand-written fake of its DAO
+  interface (an anonymous `object : XyzDao` implementing only the methods exercised,
+  throwing `NotImplementedError()` for the rest), exercising real aggregation/mapping
+  logic with no Room or Android framework dependency.
+- Each ViewModel is tested against fakes of the repository *interfaces* it's constructed
+  with (`FakeTagRepository`, `FakeTagInstanceRepository`), plus a `MainDispatcherRule` so
+  `viewModelScope` works in a JVM test. This reverses an earlier decision to leave
+  ViewModels untested, which stopped holding once ADR-019/ADR-021/ADR-022 put real state
+  machines in `CalendarViewModel` — see ADR-024.
+- Pure, non-Compose logic (parsing, date-range math, heatmap buckets) gets plain
+  function-level tests.
+
+Composables are the deliberate gap — instrumented tests need a device. The
+`XyzScreen`/`XyzContent` split (ADR-005) keeps that door open. Full conventions live in
+`TESTING.md`.
 
 ## Open notes for later docs
 
-- `CONVENTIONS.md` should pin down naming for the `UiState` data classes and the
-  callback-lambda naming pattern referenced above, so it's applied consistently
-  across Day/Week/Month/Year/Tags screens.
-- `BACKUP_SYNC.md` should clarify whether `DriveBackupService`/`DriveRestoreService`
-  talk to Repositories or to the Room database directly — leaning Repositories, to
-  keep Room fully encapsulated behind the data layer.
+- `BACKUP_SYNC.md` should clarify whether the not-yet-built
+  `DriveBackupService`/`DriveRestoreService` talk to Repositories or to the Room database
+  directly — leaning Repositories, to keep Room fully encapsulated behind the data layer.
+  (The earlier note asking `CONVENTIONS.md` to pin down `UiState`/callback naming is
+  resolved: it has a naming table and a state-holder section covering both.)

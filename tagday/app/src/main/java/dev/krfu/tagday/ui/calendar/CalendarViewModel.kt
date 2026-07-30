@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -45,6 +46,11 @@ class CalendarViewModel @Inject constructor(
     // per-instance delete) — see ADR-019. At most one removal is ever pending: starting a
     // new one commits whichever was already pending first (see beginPendingRemoval).
     private val pendingRemoval = MutableStateFlow<PendingRemoval?>(null)
+
+    // Single-shot signal for createValuedTagForEditing — CalendarScreen opens the sheet
+    // for this tag id once, then calls consumePendingValuedTagEdit.
+    private val _pendingValuedTagEdit = MutableStateFlow<Long?>(null)
+    val pendingValuedTagEdit: StateFlow<Long?> = _pendingValuedTagEdit.asStateFlow()
 
     val uiState: StateFlow<CalendarUiState> = combine(
         query,
@@ -130,6 +136,13 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    /** Instance-list sheet's add-value row for Valued groups — see ADR-020. */
+    fun addValue(tagId: Long, value: String) {
+        viewModelScope.launch {
+            tagInstanceRepository.addInstance(tagId, query.value.focusedDate.epochDay(), value = value)
+        }
+    }
+
     fun createTagAndAdd(name: String, type: TagType, rating: Int? = null, value: String? = null) {
         viewModelScope.launch {
             val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
@@ -138,9 +151,35 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Quick-entry's Valued chip for a brand-new tag name: unlike Simple/Rated (which have
+     * a sensible "nothing set yet" state — see ADR-008 for Rated), a Valued instance with
+     * no value has no meaningful display, so this creates the tag only (no instance) and
+     * opens the instance-list sheet for it via [pendingValuedTagEdit], letting the user
+     * type the first value through the sheet's existing add-value row.
+     */
+    fun createValuedTagForEditing(name: String) {
+        viewModelScope.launch {
+            val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
+            val tagId = tagRepository.createTag(name, color, TagType.VALUED)
+            _pendingValuedTagEdit.value = tagId
+        }
+    }
+
+    fun consumePendingValuedTagEdit() {
+        _pendingValuedTagEdit.value = null
+    }
+
     fun updateInstance(instance: TagInstance) {
         viewModelScope.launch {
             tagInstanceRepository.updateInstance(instance)
+        }
+    }
+
+    /** Instance-list sheet's drag-to-reorder for Valued groups. */
+    fun reorderValues(instances: List<TagInstance>) {
+        viewModelScope.launch {
+            tagInstanceRepository.updateInstances(instances)
         }
     }
 

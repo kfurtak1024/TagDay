@@ -8,11 +8,23 @@ types before Simple ones prove the plumbing out.
 Each milestone below should pull in only as much of `UI_UX.md` as it needs — don't spec
 screens you haven't reached yet.
 
+> **Current position (read this before treating the list as a plan).** M0–M4 are done, and
+> the project has since moved into the open-ended "feature complete" phase described in
+> `CLAUDE.md` § Current status rather than working straight through M5 → M6. The
+> milestones below are still an accurate record of what was built and a useful backlog for
+> M5/M6, but they are no longer the running order, and the polish items in M6 have been
+> partly picked off out of order (a11y content descriptions, empty states, and test
+> coverage — see ADR-024 — are largely in place; app icon, signing and R8 are not).
+> Note also that "v1" in this file predates the current usage: it's reserved now for an
+> eventual public Play Store release, which isn't planned. Read it as "the first feature
+> complete build".
+
 ## M0 — Project scaffolding
 
 - Empty Compose app, Hilt set up (`TagDayApplication`, `DatabaseModule` stub).
 - Room DB with `Tag` and `TagInstance` entities + DAOs from `DATA_MODEL.md`, `version = 1`.
-- Bottom navigation shell: Calendar / Tags, both showing placeholder content.
+- Navigation shell: Calendar / Tags, both showing placeholder content. (Shipped as
+  top-bar icon navigation rather than a bottom bar — see `UI_UX.md`.)
 - **Done when**: app launches, empty Room DB is created, nav switches between two blank screens.
 
 ## M1 — Day view, Simple tags only
