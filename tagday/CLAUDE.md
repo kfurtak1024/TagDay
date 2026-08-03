@@ -49,6 +49,7 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 | [`docs/TESTING.md`](docs/TESTING.md) | What's tested, how, and deliberately not |
 | [`docs/BUILD_RELEASE.md`](docs/BUILD_RELEASE.md) | Branching, CI, signing, Play Store release process |
 | [`docs/MILESTONES.md`](docs/MILESTONES.md) | Vertical-slice build plan |
+| [`docs/BACKLOG.md`](docs/BACKLOG.md) | Audited gaps (F1–F23), ordered by severity — open work |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | ADR log — why X over Y |
 
 ## Current status
@@ -119,7 +120,9 @@ Names predating the rule still work and are only brought into line on rename.
 **Before changing the Room schema, read `docs/DATA_MODEL.md` § Schema history &
 migrations.** The database still uses `fallbackToDestructiveMigration(dropAllTables =
 true)`, so the next `version` bump wipes real user data unless a real `Migration` is
-written first.
+written first. Schemas are now exported to `app/schemas/` and committed (BACKLOG F1), which
+is what makes writing that `Migration` possible — it doesn't remove the need for one, and it
+doesn't mean the schema is settled.
 
 Beyond M0-M4, the project is now in an open-ended **"feature complete"** phase (not
 labeled v1 — that term is reserved for an eventual public Play Store release, which
@@ -130,3 +133,8 @@ local JSON export — now scoped as **M5a** and sequenced ahead of the Drive tra
 which becomes the conditional M5b (ADR-032) — and a UX rework of the quick-entry add-tag
 control. See `docs/MILESTONES.md` for the M5a/M5b and M6 (polish) milestone content,
 still relevant but no longer strictly next-in-line.
+
+Running alongside that is `docs/BACKLOG.md` — gaps found by auditing the code as built
+(2026-08-03), numbered F1–F23 and ordered by severity, from the destructive-migration/
+auto-backup data-loss pair down to lint and landscape. It's the open-defect list; work it
+in tiers and tick items off in place.

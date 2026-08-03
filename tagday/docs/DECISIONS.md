@@ -819,6 +819,40 @@ leaves it small, overflow content snapped it to the cap); a fixed height is simp
 reason about and matches what was asked for directly, at the cost of visible empty
 space below a short instance list.
 
+**Amendment 1** (BACKLOG F15): point 6's *reasoning* about back press is now out of date, and
+so is alternative (3)'s "isn't achievable with `ModalBottomSheet`'s public API". Both were
+accurate against the Material3 of the time. Two things have changed in the version now on the
+BOM (material3 1.4.0):
+
+- **Back press no longer goes through `sheetState.hide()` alone.** It's handled by a
+  `PredictiveBackOnBackPressedCallback` that drives the *dialog's* `onDismissRequest`
+  (`ModalBottomSheet.android.kt`, gated only by `properties.shouldDismissOnBackPress`), which
+  with `skipPartiallyExpanded = true` lands on
+  `scope.launch { sheetState.hide() }.invokeOnCompletion { onDismissRequest() }` — and unlike
+  the scrim's `animateToDismiss`, that completion handler carries **no `if
+  (!sheetState.isVisible)` guard**. So `onDismiss` fires whether or not `confirmValueChange`
+  vetoed the hide: **back has been closing this sheet all along**, contrary to what point 6
+  intended and to what this ADR claims.
+- **`ModalBottomSheetProperties` gained `shouldDismissOnClickOutside`**, which gates the
+  `Scrim`'s own dismissal (`ModalBottomSheet.kt`: `dismissEnabled = ...`). Scrim and back are
+  therefore separable now, which is exactly what alternative (3) wanted and couldn't have.
+
+**The intended end state is unchanged in spirit but corrected in one respect**: back *should*
+close the sheet. Point 6 lumped it in with drag and scrim as "implicit dismissal", but a back
+press is a deliberate act, and on Android 14+ blocking it would mean a predictive-back peek
+followed by nothing — which reads as a broken screen, not a protected one. Accidental
+dismissal was the real concern, and drag and scrim remain blocked.
+
+What changes in code is only that this stops being accidental: block the scrim with
+`shouldDismissOnClickOutside = false` rather than with a `confirmValueChange` veto that no
+longer does the job it was added for, keep `sheetGesturesEnabled = false` for the drag, and
+let back take the library's normal path — which also restores the predictive-back animation
+instead of an instant close.
+
+**Not verified on a device** — one step of the above (whether a vetoed `hide()` completes
+promptly enough for the unguarded handler to fire) was read from the library's sources, not
+observed. See `UI_UX.md`'s manual-check list.
+
 ---
 
 ## ADR-022: Valued reordering is a real drag handle after all, via `Modifier.draggable`
@@ -1544,3 +1578,118 @@ so both conversions pin to `ZoneOffset.UTC`. Going through the local zone shifts
 date by a day for anyone west of Greenwich.
 
 **Not verified on a device** — see `UI_UX.md`'s known-issues list.
+
+---
+
+## ADR-034: Quick-entry's `:` seed applies to tags that already exist; a bare name opens the sheet
+
+**Decision:** Fixes BACKLOG F4. `TagQuickEntryBar.submit()` currently checks
+`exactMatch != null` *before* the type branches and short-circuits to
+`onAddExistingTag(id)` → `addInstance(tagId, date)` with `rating = null, value = null`, so
+everything after the `:` is silently thrown away for any tag that already exists. Instead, an
+existing tag is dispatched on **its own type**:
+
+| Existing tag | Typed | Result |
+|---|---|---|
+| Simple | `walk` | one more instance (unchanged) |
+| Rated | `mood:***` | instance with `rating = 3` |
+| Rated | `mood` | tag's sheet opens, ready for the first rating |
+| Valued | `film:dune` | instance with `value = "dune"` |
+| Valued | `film:dune,tenet` | one instance per value (as at creation, ADR-028) |
+| Valued | `film` | tag's sheet opens, ready for the first value |
+
+This makes ADR-009's shorthand mean the same thing whatever the tag's history, and makes the
+bare-name case behave exactly like creating a fresh Rated/Valued tag already does under
+ADR-021/ADR-031 — the sheet opens rather than an empty instance being guessed at.
+
+**A seed that can't apply to the tag's type is ignored**, and the tag's type always wins:
+typing `walk:***` where `walk` is Simple adds a plain instance. Tag type is immutable
+(`CLAUDE.md` § Hard rules), so there's nothing else the app *could* do, and the type picker
+isn't even displayed once the name matches an existing tag, so no UI is contradicted.
+
+**Why:** the current behaviour's worst case isn't the dropped text, it's that the app appears
+to do nothing. A value-less instance on a Valued tag is invisible in the capsule —
+`TagDisplayGroups.summarize`'s Valued branch drops nulls via `mapNotNull { it.value }` — so
+pressing "+" produces no visible change while quietly adding a row that only shows up inside
+the sheet; on a day with no other instances the capsule reads `film: []`. That's the same
+defect ADR-021 point 5 already fixed for tag *creation*, left in place on the path that gets
+used far more often: adding today's value to a Valued tag you've had for months is the single
+most common Valued action there is. Fixing creation and not this was an oversight, not a
+distinction.
+
+**Alternatives considered:** (1) Apply the seed, but let a bare name keep adding a value-less
+instance, fixing only the `film: []` display. (2) Always open the sheet for an existing
+Rated/Valued tag, ignoring the seed entirely. (3) Refuse the submit (or warn) when a seed
+can't apply to the existing tag's type, rather than ignoring it.
+
+**Why:** (1) is the smaller diff and leaves the rough edge that motivated this — an instance
+you can create but can't see. (2) has one rule and no special cases, which is genuinely
+attractive, but it makes `:value` a creation-only shorthand and puts a tap between the user
+and the most common action; the seed is unambiguous when it's there, so honouring it costs
+nothing. (3) sounds safer than it is: the mismatch is only reachable by typing `:` on a name
+that already exists as another type, the type picker is hidden in that state so nothing has
+promised otherwise, and a refusal would block a submit the user has no way to satisfy short of
+renaming the tag.
+
+**Implementation note:** opening the sheet for an *existing* tag needs the single-shot
+`pendingTagEdit` signal that `createTagForEditing` currently sets — so the ViewModel needs a
+way to request it without creating anything (`requestTagEdit(tagId)`), and
+`CalendarScreen`'s `selectedGroupIsFreshTag` flag stops meaning "just created" and starts
+meaning "may legitimately have no instances on this day". The synthetic empty
+`TagDisplayGroup` fallback it guards is needed in exactly the same way here: a tag that exists
+but has nothing on the focused date has no entry in `dayGroups`. Worth renaming with the
+change, since the old name will actively mislead.
+
+**Not verified on a device** — see `UI_UX.md`'s manual-check list.
+
+---
+
+## ADR-035: Calendar state moves into `SavedStateHandle`; the heatmap tag is remembered per session
+
+**Decision:** Fixes BACKLOG F10 and F12. Three related changes to how calendar state survives:
+
+1. **`CalendarViewModel.query` is backed by `SavedStateHandle`** rather than a plain
+   `MutableStateFlow`, so zoom level, focused date and selected heatmap tag survive process
+   death. `LocalDate` is stored as an epoch day `Int`, the same representation the DAO layer
+   already uses (`DATA_MODEL.md` § `TagInstance`), so nothing new has to be made parcelable.
+2. **Month/Year therefore stop landing on "Pick a tag" every time.** The empty state remains
+   the *initial* state — with nothing remembered there's genuinely nothing to show — but once
+   a tag has been picked, zooming back out returns to it instead of resetting.
+3. **UI-layer dialog/sheet state becomes `rememberSaveable`**: `selectedGroupKey` in
+   `CalendarScreen`, `renamingTag`/`recoloringTag` in `TagsScreen`. Currently plain `remember`,
+   so rotating the device with a sheet or dialog open closes it. Tags are keyed by id, which is
+   already `Saveable`.
+
+**Explicitly deferred: memory across a cold start.** `SavedStateHandle` survives process death
+while the task lives, not a fresh launch after the task is swept. Carrying the heatmap tag
+across that needs a real preferences store, and this project has twice declined a dependency
+for a single feature (ADR-010, ADR-011) — the honest sequencing is to live with session-scoped
+memory first and see whether the cold-start case is even felt.
+
+**Why:** these are the same bug wearing three hats — state the app treats as ephemeral that
+the user experiences as durable. F12 reads as a UX complaint ("the heatmap forgets") and F10
+as a lifecycle one ("rotation closes my sheet"), but both are "nothing here is saved". Doing
+them together is also cheaper than doing them apart: `SavedStateHandle` is one constructor
+parameter and one accessor style, and splitting it across two changes means touching
+`CalendarViewModel`'s state plumbing twice.
+
+Worth noting what this does *not* fix: `CalendarUiState.focusedDate` defaults to
+`LocalDate.now()` evaluated at construction, and nothing re-reads it as the day rolls over
+(BACKLOG F6). Restoring a saved focused date makes that staleness *more* visible, not less —
+reopen the app the next morning and it restores yesterday. F6 should land with or before this.
+
+**Alternatives considered:** (1) Auto-select the first tag for the heatmap instead of
+remembering one. (2) Keep the "Pick a tag" empty state as-is and close F12 as intended
+behaviour. (3) Add DataStore now and persist properly across cold starts. (4) Lock the app to
+portrait, which removes the rotation half of F10 outright.
+
+**Why:** (1) always shows something, but what it shows is arbitrary (alphabetically first) and
+a heatmap of a tag you didn't ask about is noise that looks like signal. (2) is defensible —
+choosing the tag *is* using the feature — but the cost falls on the most ordinary gesture in
+the app: swiping down from Week hits a dead end every single time. (3) is where this may well
+end up, and M5a will bring file I/O into the project anyway; it's deferred rather than
+rejected. (4) is a real option for a single-user portrait-first app and would also defuse part
+of BACKLOG F23 — kept on the table, but it answers the rotation case by removing rotation,
+which is a bigger product decision than this ADR should make in passing.
+
+**Not verified on a device** — see `UI_UX.md`'s manual-check list.

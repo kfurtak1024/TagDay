@@ -3,6 +3,17 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.room)
+}
+
+// Records the current Room schema as JSON under `app/schemas`, one file per `version`.
+// These are committed deliberately: they're the "before" side a real `Migration` has to be
+// written and tested against, and they can't be reconstructed after the fact. Nothing here
+// obliges the schema to be final or a migration to exist yet — while the database still uses
+// `fallbackToDestructiveMigration`, this is a recording, not a contract. See
+// `docs/DATA_MODEL.md` § Schema history & migrations.
+room {
+    schemaDirectory("$projectDir/schemas")
 }
 
 android {

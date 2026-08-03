@@ -183,14 +183,45 @@ Every one of those bumps relied on `fallbackToDestructiveMigration(dropAllTables
 in `di/DatabaseModule.kt` rather than a written `Migration`, which was defensible while
 the only data at stake was local development data.
 
-> **This is now the project's biggest data-loss risk.** Destructive fallback means the
-> *next* schema change silently wipes every tag and instance on any device that has the
-> app installed — including the developer's own day-to-day install, which by now holds
-> real diary data. Writing real `Migration`s (and `exportSchema = true` plus a
-> `schemas/` directory, so Room can verify them) should happen *before* the next schema
-> change, not after. Note that Android's auto-backup is not a substitute: the manifest
-> has `allowBackup="true"` with the template's empty rules, so a restore can bring back
-> a database file from an older schema version and hit exactly the same destructive path.
+### Schema export
+
+`exportSchema = true` (`TagDayDatabase`), with the location wired by the Room Gradle plugin
+in `app/build.gradle.kts`:
+
+```kotlin
+room { schemaDirectory("$projectDir/schemas") }
+```
+
+Room writes one JSON file per `version` to `app/schemas/<database class>/`, and **those files
+are committed**. They're the only record of what a given version's tables looked like, and a
+real `Migration` can't be written or tested (`MigrationTestHelper` reads them) without the
+"before" side. They can't be reconstructed after the fact, which is why the export is on now
+rather than when migrations are actually needed.
+
+Two things this deliberately does *not* mean:
+
+- **It isn't a claim the schema is final.** While the database still uses destructive
+  fallback, the export is a recording, not a contract — keep changing entities freely. Each
+  `version` bump simply gains its own JSON file. (Changing entities *without* bumping
+  `version` is a different matter: Room's identity-hash check fails at open time with "you've
+  changed schema but forgot to update the version number", which destructive fallback does
+  **not** catch. During development that means bump the version or reinstall.)
+- **It doesn't oblige a migration yet.** Migrations become mandatory only when
+  `fallbackToDestructiveMigration` comes out.
+
+Versions 1 and 2 predate the export and have no JSON — they're unrecoverable. That only
+matters for a device still sitting on one of them, which in practice doesn't exist; migrations
+written from here on start at 3.
+
+> **The remaining data-loss risk.** Destructive fallback still means the *next* schema change
+> silently wipes every tag and instance on any device that has the app installed — including
+> the developer's own day-to-day install, which by now holds real diary data. The export above
+> makes the fix *possible*; it doesn't apply it. Writing real `Migration`s must still happen
+> before the next schema change, not after. Note also that Android's auto-backup is not a
+> substitute: the manifest has `allowBackup="true"` with the template's empty rules, so a
+> restore can bring back a database file from an older schema version and hit exactly the same
+> destructive path — see ADR-032's open item, and F2 in `BACKLOG.md` for why closing that is
+> sequenced with M5a's local export rather than done now.
 
 Which resolves the earlier open note here: `Tag`/`TagInstance` are *not* used directly as
 UI-facing models — `TagDisplayGroup` (`data/model/`) is, per `ARCHITECTURE.md`.
