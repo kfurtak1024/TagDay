@@ -6,6 +6,10 @@
 
     <string name="calendar_settings_content_description">Settings</string>
     <string name="calendar_jump_to_today_content_description">Jump to today</string>
+    <string name="calendar_previous_period">Previous %1$s</string>
+    <string name="calendar_next_period">Next %1$s</string>
+    <string name="calendar_date_picker_confirm">Go</string>
+    <string name="calendar_date_picker_cancel">Cancel</string>
     <string name="settings_empty_message">Nothing here yet</string>
 
     <string name="tags_search_placeholder">Search tags…</string>

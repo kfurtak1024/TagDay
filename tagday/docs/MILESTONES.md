@@ -12,7 +12,7 @@ screens you haven't reached yet.
 > the project has since moved into the open-ended "feature complete" phase described in
 > `CLAUDE.md` § Current status rather than working straight through M5 → M6. The
 > milestones below are still an accurate record of what was built and a useful backlog for
-> M5/M6, but they are no longer the running order, and the polish items in M6 have been
+> M5a/M5b/M6, but they are no longer the running order, and the polish items in M6 have been
 > partly picked off out of order (a11y content descriptions, empty states, and test
 > coverage — see ADR-024 — are largely in place; app icon, signing and R8 are not).
 > Note also that "v1" in this file predates the current usage: it's reserved now for an
@@ -68,7 +68,23 @@ screens you haven't reached yet.
 - **Done when**: all four zoom levels are navigable by gesture and show the data shapes
   defined in `FEATURES.md`.
 
-## M5 — Google Drive backup/restore
+## M5a — Local JSON export/import
+
+- A versioned JSON document holding the full `Tag`/`TagInstance` dataset — the same payload
+  M5b later uploads, defined once here (ADR-032).
+- Export/import from the Settings screen via the Storage Access Framework: no account, no
+  network, no new permissions.
+- Import fully replaces local data, and snapshots the current state first so it's recoverable.
+- `schemaVersion` handling decided up front: migrate an older document on read, refuse a newer
+  one outright rather than parsing it leniently.
+- **Done when**: a dataset can be exported to a file, wiped, and imported back identically —
+  and the round-trip is covered by unit tests, which is the point of doing this half first.
+
+## M5b — Google Drive backup/restore
+
+Conditional: whether this is worth its cost gets decided after living with M5a (ADR-032).
+Blocked on release signing existing, since OAuth client IDs bind to the signing certificate's
+SHA-1 (`BUILD_RELEASE.md`).
 
 - App-managed backup to a hidden Drive app-data folder (`drive.appdata` scope), not a
   user-browsable file — see `BACKUP_SYNC.md` and ADR-015.
@@ -79,6 +95,9 @@ screens you haven't reached yet.
   Google account (no file picker) and fully replaces local `Tag`/`TagInstance` data —
   no merge.
 - Still not live sync — one-directional backup only, no multi-device sync.
+- Never auto-backup when local data is empty and a remote backup exists, or a declined
+  restore prompt plus the 24h staleness trigger overwrites the good backup with nothing
+  (ADR-032).
 - **Done when**: a fresh install, once signed in, is offered and can restore the most
   recent backup and end up with an identical `Tag`/`TagInstance` dataset to what the
   source device had at last backup.

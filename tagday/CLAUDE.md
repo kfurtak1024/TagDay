@@ -45,7 +45,7 @@ These are deliberate constraints, not gaps — don't "fix" them without discussi
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Room entities, relations, DAOs/queries |
 | [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) | Package layout, naming, Compose style rules |
 | [`docs/UI_UX.md`](docs/UI_UX.md) | Screens, nav graph, theming |
-| [`docs/BACKUP_SYNC.md`](docs/BACKUP_SYNC.md) | Drive backup format, trigger, restore — M5, not yet implemented |
+| [`docs/BACKUP_SYNC.md`](docs/BACKUP_SYNC.md) | Drive backup format, trigger, restore — M5b, not yet implemented |
 | [`docs/TESTING.md`](docs/TESTING.md) | What's tested, how, and deliberately not |
 | [`docs/BUILD_RELEASE.md`](docs/BUILD_RELEASE.md) | Branching, CI, signing, Play Store release process |
 | [`docs/MILESTONES.md`](docs/MILESTONES.md) | Vertical-slice build plan |
@@ -60,8 +60,11 @@ tap-a-day-to-jump-to-Day-zoom (Week/Month) or tap-a-month-to-jump-to-Month-zoom 
 per ADR-016), and a top-bar `ZoomLevelPicker` dropdown for jumping directly to a zoom
 level, per ADR-012 and ADR-014. A conditional top-bar icon (`jumpToToday`, ADR-017)
 returns to today from Day zoom only; Week/Month/Year instead highlight today's
-row/cell/tile in place, sized to what each density has room for. Day zoom has Simple,
-Rated, and Valued tags with full grouping/aggregation; tapping any group opens a bottom
+row/cell/tile in place, sized to what each density has room for. Those three also carry a
+`PeriodNavigationRow` above their content — the period's name plus `‹`/`›` and a tappable
+label opening a date picker — since they otherwise never say which week/month/year is on
+screen; Day is excluded, its header card already showing the date (ADR-033). Day zoom has
+Simple, Rated, and Valued tags with full grouping/aggregation; tapping any group opens a bottom
 sheet to edit it — per-instance rows for Rated/Valued, and for Simple a count-only stepper,
 since how many times it applies is all a Simple tag has (ADR-031, superseding ADR-018's
 "Simple isn't tappable"). Creating a Rated or Valued tag without a `:***`/`:value` seed
@@ -123,7 +126,7 @@ labeled v1 — that term is reserved for an eventual public Play Store release, 
 isn't currently planned) rather than working straight through the original M5/M6
 milestone list. Polish items (app icon, signing, R8) are deliberately deferred to once
 feature-complete is reached. In-progress/planned for this phase, beyond what's landed: a
-local JSON export (also intended to double as M5's Drive backup payload format once
-reached), and a UX rework of the quick-entry add-tag control. See `docs/MILESTONES.md`
-for the original M5 (Drive backup)/M6 (polish) milestone content, still relevant but no
-longer strictly next-in-line.
+local JSON export — now scoped as **M5a** and sequenced ahead of the Drive transport,
+which becomes the conditional M5b (ADR-032) — and a UX rework of the quick-entry add-tag
+control. See `docs/MILESTONES.md` for the M5a/M5b and M6 (polish) milestone content,
+still relevant but no longer strictly next-in-line.

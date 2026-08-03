@@ -122,8 +122,13 @@ class CalendarViewModel @Inject constructor(
         query.update { it.copy(zoomLevel = ZoomLevel.MONTH, focusedDate = date) }
     }
 
+    /** Moves the focused date without changing zoom level — the period row's date picker. */
+    fun setFocusedDate(date: LocalDate) {
+        query.update { it.copy(focusedDate = date) }
+    }
+
     fun jumpToToday() {
-        query.update { it.copy(focusedDate = LocalDate.now()) }
+        setFocusedDate(LocalDate.now())
     }
 
     fun selectHeatmapTag(tagId: Long) {

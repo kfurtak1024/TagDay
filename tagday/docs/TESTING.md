@@ -15,9 +15,10 @@ based on the pattern that emerged across M1–M4 rather than a plan written up f
   and the rename duplicate-name guard. See § ViewModel tests — this reverses an earlier
   "deliberately not tested" call, per ADR-024.
 - **Pure, non-Compose utility logic**: date-range/stepping math (`CalendarDateRanges`),
-  text parsing (`ParsedTagInput`), heatmap shading buckets (`alphaForCount`). Anything
-  with real boundary conditions (month/year edges, leap years, empty/edge-case input)
-  that's cheap to verify directly.
+  text parsing (`ParsedTagInput`), heatmap shading buckets (`alphaForCount`), period
+  labels (`CalendarPeriodLabels` — the week case straddles months and years, ADR-033).
+  Anything with real boundary conditions (month/year edges, leap years, empty/edge-case
+  input) that's cheap to verify directly.
 
 As a rule of thumb: if a bug in it would be silent and hard to notice by eye (off-by-one
 in a date range, a grouping key computed wrong), it's worth a test; if it's a thin

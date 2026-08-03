@@ -104,9 +104,10 @@ dev.krfu.tagday/
     └── theme/      # Theme.kt, Color.kt, Type.kt, TagPalette.kt, TemporalColors.kt
 ```
 
-**Not built yet**, but planned homes rather than invented ones: a `backup/` package for
-Drive backup/restore services and its UI entry point (M5, `BACKUP_SYNC.md`) — the UI half
-may end up under `settings/` instead of its own `ui/backup/` package, still undecided.
+**Not built yet**, but planned homes rather than invented ones: a `backup/` package for the
+export/import serializer (M5a) and, if it happens, the Drive backup/restore services and
+their UI entry point (M5b, `BACKUP_SYNC.md`, ADR-032) — the UI half may end up under
+`settings/` instead of its own `ui/backup/` package, still undecided.
 
 ## State management
 

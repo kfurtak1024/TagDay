@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.rememberScrollableState
 import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -66,6 +67,7 @@ fun CalendarContent(
     onMonthClick: (LocalDate) -> Unit,
     onTagPicked: (Long) -> Unit,
     onStepTime: (Int) -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
     onStepZoom: (Int) -> Unit,
     onZoomLevelPicked: (ZoomLevel) -> Unit,
     onJumpToToday: () -> Unit,
@@ -198,42 +200,57 @@ fun CalendarContent(
                     )
                 },
         ) {
-            AnimatedContent(
-                targetState = uiState.zoomLevel,
-                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
-                label = "zoom-level",
-            ) { zoom ->
-                when (zoom) {
-                    ZoomLevel.DAY -> DayContent(
-                        date = uiState.focusedDate,
-                        groups = (uiState.periodData as? CalendarPeriodData.Day)?.groups.orEmpty(),
-                        onGroupClick = onGroupClick,
-                        onGroupQuickRemove = onGroupQuickRemove,
-                    )
-
-                    ZoomLevel.WEEK -> WeekContent(
+            Column {
+                // Day is deliberately excluded: its header card already states the date, so a
+                // second copy above it would be redundant and cost capsule rows. Week/Month/Year
+                // name their period nowhere else at all. See ADR-033.
+                if (uiState.zoomLevel != ZoomLevel.DAY) {
+                    PeriodNavigationRow(
                         focusedDate = uiState.focusedDate,
-                        groupsByDate = (uiState.periodData as? CalendarPeriodData.Week)?.groupsByDate.orEmpty(),
-                        onDayClick = onDayClick,
+                        zoomLevel = uiState.zoomLevel,
+                        onStepTime = onStepTime,
+                        onDateSelected = onDateSelected,
                     )
+                }
+                AnimatedContent(
+                    targetState = uiState.zoomLevel,
+                    transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                    label = "zoom-level",
+                    modifier = Modifier.weight(1f),
+                ) { zoom ->
+                    when (zoom) {
+                        ZoomLevel.DAY -> DayContent(
+                            date = uiState.focusedDate,
+                            groups = (uiState.periodData as? CalendarPeriodData.Day)?.groups.orEmpty(),
+                            onGroupClick = onGroupClick,
+                            onGroupQuickRemove = onGroupQuickRemove,
+                        )
 
-                    ZoomLevel.MONTH -> MonthContent(
-                        focusedDate = uiState.focusedDate,
-                        allTags = uiState.allTags,
-                        selectedTagId = uiState.selectedTagId,
-                        countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)?.countsByDate.orEmpty(),
-                        onTagPicked = onTagPicked,
-                        onDayClick = onDayClick,
-                    )
+                        ZoomLevel.WEEK -> WeekContent(
+                            focusedDate = uiState.focusedDate,
+                            groupsByDate = (uiState.periodData as? CalendarPeriodData.Week)?.groupsByDate.orEmpty(),
+                            onDayClick = onDayClick,
+                        )
 
-                    ZoomLevel.YEAR -> YearContent(
-                        focusedDate = uiState.focusedDate,
-                        allTags = uiState.allTags,
-                        selectedTagId = uiState.selectedTagId,
-                        countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)?.countsByDate.orEmpty(),
-                        onTagPicked = onTagPicked,
-                        onMonthClick = onMonthClick,
-                    )
+                        ZoomLevel.MONTH -> MonthContent(
+                            focusedDate = uiState.focusedDate,
+                            allTags = uiState.allTags,
+                            selectedTagId = uiState.selectedTagId,
+                            countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)?.countsByDate.orEmpty(),
+                            onTagPicked = onTagPicked,
+                            onDayClick = onDayClick,
+                        )
+
+                        ZoomLevel.YEAR -> YearContent(
+                            focusedDate = uiState.focusedDate,
+                            allTags = uiState.allTags,
+                            selectedTagId = uiState.selectedTagId,
+                            countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)
+                                ?.countsByDate.orEmpty(),
+                            onTagPicked = onTagPicked,
+                            onMonthClick = onMonthClick,
+                        )
+                    }
                 }
             }
         }

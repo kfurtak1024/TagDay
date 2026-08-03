@@ -1415,3 +1415,132 @@ trick stays — it's what keeps the ✕'s target where it looks, and without it 
 into the FlowRow's gaps and compete with capsules in adjacent rows.
 
 **Not verified on a device** — see `UI_UX.md`'s known-issues list.
+
+---
+
+## ADR-032: M5 splits — local JSON export/import first, the Drive transport deferred behind it
+
+**Decision:** M5 becomes two milestones. **M5a** defines the backup *document* and ships it as
+local export/import from the Settings screen — no account, no network, no new permissions
+(Storage Access Framework `CREATE_DOCUMENT`/`OPEN_DOCUMENT`). **M5b** is the Drive transport
+exactly as ADR-015 describes it, uploading the same document M5a already produces. ADR-015 is
+**not** superseded: hidden `appDataFolder`, one rolling backup, replace-not-merge, and
+periodic-with-manual-override all still stand for M5b. What changes is the order, and that M5b
+is now explicitly conditional — whether it's worth its cost gets decided after living with
+M5a, not now.
+
+Decisions M5a settles, because they're expensive to revisit once a file format is in the wild:
+
+1. **`kotlinx.serialization`** for the payload, not `org.json` or hand-rolled strings.
+2. **`schemaVersion`, with rules**: an older version migrates on read; a **newer** version is
+   *refused outright* rather than parsed leniently. Silently dropping fields it doesn't
+   understand would turn "restore an old app build" into quiet data loss.
+3. **Import fully replaces** local `Tag`/`TagInstance` data, matching M5's original
+   done-criteria — and writes a pre-import export of the current state first, so a bad import
+   is recoverable. The app makes deleting one instance undoable (ADR-019); replacing the entire
+   database shouldn't be the one destructive act with no way back.
+4. Two corrections to `BACKUP_SYNC.md` that carry into M5b: **never auto-backup when local data
+   is empty and a remote backup exists** (otherwise a declined restore prompt followed by the
+   24h staleness trigger overwrites the good backup with nothing), and use **WorkManager** for
+   the automatic path — "not a background sync service" rules out continuous sync, not a
+   one-shot constrained job, and it answers the retry/backoff question the doc left open.
+
+**Why:** the live problem isn't that backups are missing, it's that
+`fallbackToDestructiveMigration(dropAllTables = true)` means the next schema change wipes real
+data (`DATA_MODEL.md` § Schema history). A local export defuses that *now*, with none of
+Drive's cost. It's also the only part of M5 that's fully unit-testable in this project's setup
+— a round-trip over the format needs no device, whereas the transport can't be tested here at
+all. And M5b's real cost is mostly non-code: a Cloud project, consent-screen configuration,
+and OAuth client IDs bound to package name + signing-certificate SHA-1 — which means it's
+blocked on release signing, which doesn't exist yet (`BUILD_RELEASE.md`). Sequencing the
+format first takes that blocker off the critical path instead of parking the whole milestone
+behind it.
+
+**Alternatives considered:** (1) Build M5 as specced, Drive first. (2) Replace Drive with local
+export permanently — cancel M5b outright. (3) Lean on Android's auto-backup instead of building
+either. (4) `org.json` instead of `kotlinx.serialization`, to avoid a dependency. (5) Copy the
+Room `.db` file instead of serializing to JSON.
+
+**Why:** (1) puts the untestable, externally-blocked half first and leaves the data-loss risk
+open in the meantime. (2) is tempting and may well be where this lands — a single-device
+personal app may get 90% of the value from a file you can copy off the device — but it's a
+guess until the export exists; deferring keeps the option, cancelling spends it. (3) was
+already rejected by ADR-015 for a reason that still holds (it can't be triggered or restored on
+demand), and note it's *partly on right now* — see the open item below. (4) would save a
+dependency and cost the thing that matters most here: `org.json` is stubbed on the JVM
+unit-test classpath, so every test touching it fails with "not mocked" unless the whole module
+opts into returning default values. Choosing it would make the one genuinely testable piece of
+M5 untestable, which is backwards. `kotlinx.serialization` also makes the schema explicit in
+the type system, which point 2 depends on. (5) is less code, but the `.db` file is the
+*schema-coupled* artifact — restoring a v3 file into a v4 app lands straight back in the
+destructive-migration path this is meant to escape. A versioned JSON document is
+schema-tolerant by construction, which is the entire point of doing it this way.
+
+**Open, and required before M5b:** the manifest still has `allowBackup="true"` with the
+template's empty rules, so Android's own auto-backup may already be copying the Room database —
+including restoring an older-schema file into the destructive path. That overlap needs a
+deliberate answer (exclude the database and let the export/Drive own it, or keep both
+knowingly). It's left open here rather than decided in passing because it's a privacy call —
+whether a diary belongs in the OS backup stream — not a technical one.
+
+---
+
+## ADR-033: A period-navigation row at Week/Month/Year; Day deliberately left out for now
+
+**Decision:** Week, Month and Year gain a row above their content: `‹  July 2026  ›`
+(`PeriodNavigationRow`). The arrows step the focused period by one unit — the same
+`onStepTime` the horizontal swipe already calls — and the label is tappable, opening a
+`DatePickerDialog` for jumps no amount of swiping is worth. Picking a date calls a new
+`CalendarViewModel.setFocusedDate`, which moves the date *without* changing zoom level, unlike
+`jumpToDay`. The label itself comes from `CalendarPeriodLabels`, a pure locale-parameterised
+formatter so the awkward cases have unit tests: a week inside one month says the month once
+(`20 – 26 July 2026`), a week straddling months or years names both
+(`27 Jul – 2 Aug 2026`, `28 Dec 2026 – 3 Jan 2027`).
+
+**Day zoom is deliberately excluded**, and so is any change to the jump-to-today button.
+
+**Why here and not on Day:** Week, Month and Year currently name their period *nowhere*. A
+Month grid is bare day numbers with no "July 2026" anywhere on screen; a Year grid shows month
+abbreviations with the year present only inside a per-tile content description, invisible
+unless you're using a screen reader. At Month zoom you genuinely cannot tell which month you're
+looking at except by spotting the today-ring. That's a defect, and the row fixes it. Day has
+the opposite problem: its header card already shows the month/year band, a large day number,
+the weekday *and* a past/today/future pill, so the same row there would state the date twice
+while costing roughly 1.3 rows of tag capsules (the capsule area is about 420dp ≈ 7 rows on a
+360×800 screen). Day's version is worth doing as a redesign of that card — arrows on the card
+itself, no new height — which is a separate change.
+
+**On not repeating ADR-012:** a dedicated strip with a label and chevrons was built once before
+and removed by explicit request, for exactly the space it reserved (ADR-012 Amendment 2); the
+discoverability it provided was later recovered by moving the control into the app bar
+(ADR-014's `ZoomLevelPicker`). This row is knowingly the same *shape* as the thing that was
+removed, and the difference that justifies it is narrow: the old strip displayed the zoom
+level, which the app bar could carry just as well, whereas this one displays the period, which
+at these zoom levels exists nowhere else. Where that isn't true — Day — the row isn't used.
+Fitting the arrows alongside a gesture, rather than replacing it, follows ADR-014 directly: the
+swipe stays the fast path, and the buttons make it discoverable while giving the time axis a
+non-gesture route for anyone who can't comfortably swipe.
+
+**Alternatives considered:** (1) Put the period label in the top bar instead of a row. (2) Do
+Day first, as originally proposed. (3) Tap the date to jump to Month zoom rather than opening a
+picker. (4) Label only, no arrows — leave stepping to the swipe. (5) Remove the jump-to-today
+button now, as originally proposed.
+
+**Why:** (1) is where ADR-014 put the zoom picker and it's the cheaper option for space, but
+the title slot already holds the zoom picker plus a conditional today button, and adding
+`‹ date ›` beside them crowds it past the point of being tappable — revisit if the row proves
+unwelcome. (2) inverts the value: Day is where the row adds least and costs most. (3) doesn't
+work — Month zoom is a *single-tag heatmap*, not a general calendar grid, and shows "pick a
+tag" until one is selected, so tapping a date to navigate would frequently land on an empty
+state. (4) leaves the discoverability and accessibility gaps that motivated the row's ancestor
+in ADR-012 Amendment 1, where a swipe-only affordance proved too easy to miss. (5) was rejected
+for now: "back to today" is the app's most common navigation and the button makes it one tap,
+where the picker makes it three (open, navigate, confirm). The button is Day-only, so it isn't
+even in this change's way; if the row later comes to Day, the right move is to relocate the
+button into it rather than delete it, keeping ADR-017's conditional visibility.
+
+**Implementation note:** `DatePicker` deals in UTC-midnight millis regardless of device zone,
+so both conversions pin to `ZoneOffset.UTC`. Going through the local zone shifts the selected
+date by a day for anyone west of Greenwich.
+
+**Not verified on a device** — see `UI_UX.md`'s known-issues list.

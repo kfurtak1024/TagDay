@@ -4,8 +4,8 @@ Scoped to what **M0-M4** actually need (see `MILESTONES.md`): the navigation she
 Calendar screen (all four zoom levels, all three tag types), and the Tags management
 screen. The Settings screen was scaffolded early (empty, ahead of any specific
 milestone) so it exists as a destination for later work to land in — see § Settings
-screen. Its actual content, including Drive backup UI, is specced when M5 arrives —
-don't design ahead of that.
+screen. Its actual content — local export/import at M5a, Drive backup UI at M5b if it
+happens (ADR-032) — is specced when those arrive; don't design ahead of that.
 
 ## Navigation shell
 
@@ -54,6 +54,8 @@ on `CalendarViewModel`'s `zoomLevel` state.
 ┌─────────────────────────────┐
 │  Day ▾ [⌖]            [🏷] [⚙]│  ← top bar: zoom picker + jump-to-today (left), Tags + Settings (right)
 ├─────────────────────────────┤
+│  ‹      July 2026         ›  │  ← period row, Week/Month/Year only (not Day)
+├─────────────────────────────┤
 │                               │
 │      (zoom-level content)    │  ← swipe up/down = zoom, left/right = move through time
 │                               │
@@ -92,6 +94,18 @@ on `CalendarViewModel`'s `zoomLevel` state.
   is a discoverability/direct-jump affordance *alongside* the swipe gesture, not a
   replacement for it — see ADR-014 in `DECISIONS.md`, and its relationship to the
   strip that ADR-012 tried and removed.
+- **Period row** (`PeriodNavigationRow`): shown at Week/Month/Year, **not** Day. Names the
+  period on screen — `20 – 26 July 2026`, `July 2026`, `2026` — with `‹`/`›` buttons stepping
+  it by one unit, and the label tappable to open a `DatePickerDialog` for a distant jump.
+  Those three zoom levels previously said nowhere *which* week/month/year they showed (a Month
+  grid is bare day numbers; a Year grid had the year only in a per-tile content description),
+  which is what the row is for. Day is excluded because its header card already carries the
+  date and the row would cost about 1.3 rows of tag capsules; doing it there means redesigning
+  that card instead, which hasn't been done. The arrows duplicate the horizontal swipe rather
+  than replacing it — same relationship `ZoomLevelPicker` has to the vertical swipe (ADR-014) —
+  and give the time axis a route that doesn't need a gesture at all. Labels come from
+  `CalendarPeriodLabels` (unit-tested; a week straddling a month or year names both ends).
+  See ADR-033, and ADR-012 Amendment 2 for the earlier strip this deliberately resembles.
 - **Quick-entry bar**: shown only at Day zoom — adding tags is a Day-only capability
   (`FEATURES.md`); Week/Month/Year are read-only overviews/navigation.
 - **Gesture model**: no dedicated control for zoom *in the content body* — the zoom
@@ -406,8 +420,9 @@ not scoped by this doc; don't design ahead of it.
 
 ## Open notes for later docs
 
-- **M5** adds a Drive backup/restore entry point — likely a simple settings-style
-  screen reachable from somewhere in the nav shell (exact placement TBD when reached).
+- **M5a** adds export/import entries to the Settings screen (Storage Access Framework
+  file picker, no account); **M5b**, if it happens, adds the Drive backup/restore entry
+  point beside them (ADR-032). Exact layout of that screen is TBD when reached.
 - ~~**Considered: Undo snackbar for the capsule "x"**~~ — resolved, see § Day zoom
   above and ADR-019: both the capsule "x" and the instance-list sheet's per-instance
   delete now go through a delay-delete snackbar. The Scaffold's `snackbarHost` slot
@@ -457,6 +472,12 @@ not scoped by this doc; don't design ahead of it.
   - **Rated creation (ADR-031)**: pick Rated for a new name, press `+`, and confirm the sheet
     opens on an empty Rated panel rather than the day showing an unrated bare name; then check
     `mood:***` still creates it rated in one step without opening the sheet.
+  - **Period row (ADR-033)**: at Week/Month/Year, confirm the label matches what's on screen
+    and that `‹`/`›` move exactly one week/month/year; check the week label at a month boundary
+    (`27 Jul – 2 Aug 2026`) and a year boundary. Tap the label, pick a date, and confirm the
+    view moves there and *stays at the same zoom level*. Confirm the horizontal swipe still
+    works, including a swipe that starts on the row itself, and that the row doesn't appear at
+    Day zoom.
   - **Scrollbars (ADR-030)**: with enough tags to overflow the Tags screen, confirm a thumb
     appears down the right edge, tracks position as you scroll (not just at the extremes),
     and disappears once the filter narrows the list to something that fits. Confirm the

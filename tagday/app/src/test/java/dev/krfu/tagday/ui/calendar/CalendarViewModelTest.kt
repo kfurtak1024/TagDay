@@ -97,6 +97,21 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun setFocusedDate_movesTheDateWithoutChangingZoom() = runTest {
+        // The period row's date picker: at Month zoom, picking a day means "show me that
+        // month", not "drop me into Day zoom" the way tapping a grid cell does.
+        val (viewModel, _, _) = viewModelWith()
+        keepSubscribed(viewModel.uiState)
+        viewModel.setZoom(ZoomLevel.MONTH)
+
+        val target = today.minusMonths(4)
+        viewModel.setFocusedDate(target)
+
+        assertEquals(target, viewModel.uiState.value.focusedDate)
+        assertEquals(ZoomLevel.MONTH, viewModel.uiState.value.zoomLevel)
+    }
+
+    @Test
     fun jumpToToday_keepsZoomLevel() = runTest {
         val (viewModel, _, _) = viewModelWith()
         keepSubscribed(viewModel.uiState)

@@ -77,6 +77,7 @@ fun CalendarScreen(
         onMonthClick = { date -> viewModel.jumpToMonth(date) },
         onTagPicked = { tagId -> viewModel.selectHeatmapTag(tagId) },
         onStepTime = { direction -> viewModel.stepTime(direction) },
+        onDateSelected = { date -> viewModel.setFocusedDate(date) },
         onStepZoom = { direction -> viewModel.stepZoom(direction) },
         onZoomLevelPicked = { zoomLevel -> viewModel.setZoom(zoomLevel) },
         onJumpToToday = { viewModel.jumpToToday() },

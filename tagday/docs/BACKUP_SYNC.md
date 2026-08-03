@@ -1,8 +1,16 @@
 # TagDay — Backup / Sync (Google Drive)
 
-Scope: M5 (`MILESTONES.md`). WhatsApp-inspired backup — periodic snapshot with a manual
+Scope: M5b (`MILESTONES.md`). WhatsApp-inspired backup — periodic snapshot with a manual
 override, not multi-device live sync, which stays an explicit non-goal (`FEATURES.md`
 § Non-goals). See ADR-015 in `DECISIONS.md` for why this shape over the alternatives.
+
+> **Sequenced behind M5a, and conditional on it** (ADR-032). The JSON document described
+> under § Backup format is defined and shipped first as *local* export/import, with no
+> account or network; this doc covers the transport that later carries the same document.
+> Everything below still stands as the intended shape — but two corrections apply from
+> ADR-032: an automatic backup must never overwrite an existing remote backup when local data
+> is empty, and the automatic path should be a WorkManager one-shot rather than a bare
+> launch-time coroutine (which also answers the retry/backoff open question at the bottom).
 
 ## Mechanism
 
