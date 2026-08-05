@@ -1,5 +1,6 @@
 package dev.krfu.tagday.ui.calendar
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,6 +12,8 @@ import dev.krfu.tagday.data.repository.TagInstanceRepository
 import dev.krfu.tagday.data.repository.TagRepository
 import dev.krfu.tagday.ui.theme.TagPalette
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,11 +21,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.Clock
+import java.time.Duration
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -34,30 +40,101 @@ private data class CalendarQuery(
 
 private fun LocalDate.epochDay(): Int = toEpochDay().toInt()
 
+/**
+ * How long a delay-delete waits before it actually deletes (ADR-019). Mirrors
+ * `SnackbarDuration.Short`, which is what the undo snackbar is shown for — the two are
+ * independent timers over the same window, so the snackbar disappearing and the deletion
+ * landing look like one event.
+ */
+private const val UNDO_WINDOW_MS = 4_000L
+
+private const val KEY_ZOOM = "zoomLevel"
+private const val KEY_FOCUSED_DATE = "focusedDate"
+private const val KEY_SELECTED_TAG = "selectedTagId"
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CalendarViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val tagInstanceRepository: TagInstanceRepository,
+    private val clock: Clock,
+    private val savedState: SavedStateHandle,
 ) : ViewModel() {
-    private val query = MutableStateFlow(CalendarQuery(ZoomLevel.DAY, LocalDate.now(), null))
+    // Zoom level, focused date and heatmap tag survive process death (ADR-035, BACKLOG F10 and
+    // F12). Stored as three primitives rather than a parcelable `CalendarQuery`: the date goes
+    // as an epoch day, which is already this project's wire format for a date
+    // (`DATA_MODEL.md` § `TagInstance`), and the zoom level as its ordinal.
+    private val query = MutableStateFlow(
+        CalendarQuery(
+            zoomLevel = savedState.get<Int>(KEY_ZOOM)
+                ?.let { ZoomLevel.entries.getOrNull(it) }
+                ?: ZoomLevel.DAY,
+            focusedDate = savedState.get<Long>(KEY_FOCUSED_DATE)
+                ?.let(LocalDate::ofEpochDay)
+                ?: LocalDate.now(clock),
+            selectedTagId = savedState.get<Long>(KEY_SELECTED_TAG),
+        ),
+    )
+
+    init {
+        // One writer, rather than a save call scattered through every mutator — a new
+        // navigation method can't then forget to persist.
+        viewModelScope.launch {
+            query.collect {
+                savedState[KEY_ZOOM] = it.zoomLevel.ordinal
+                savedState[KEY_FOCUSED_DATE] = it.focusedDate.toEpochDay()
+                savedState[KEY_SELECTED_TAG] = it.selectedTagId
+            }
+        }
+    }
 
     // Delay-delete undo for Day-zoom removals (capsule "x", instance-list sheet's
     // per-instance delete) — see ADR-019. At most one removal is ever pending: starting a
     // new one commits whichever was already pending first (see beginPendingRemoval).
     private val pendingRemoval = MutableStateFlow<PendingRemoval?>(null)
+    private var pendingRemovalJob: Job? = null
 
     // Single-shot signal for createTagForEditing — CalendarScreen opens the sheet for this
     // tag id once, then calls consumePendingTagEdit.
     private val _pendingTagEdit = MutableStateFlow<Long?>(null)
     val pendingTagEdit: StateFlow<Long?> = _pendingTagEdit.asStateFlow()
 
+    /**
+     * Today's date, re-emitted when the day actually rolls over. Every "is this today?"
+     * decision in the UI reads this instead of calling `LocalDate.now()` itself — the Day
+     * header's past/today/future pill, Week's row highlight, Month's today-ring, Year's
+     * current-month border and the jump-to-today button's visibility. Read ad-hoc during
+     * composition, none of those ever updated: leave the app open past midnight and it went on
+     * calling yesterday "Today" until something unrelated happened to recompose (BACKLOG F6).
+     *
+     * `WhileSubscribed` restarts this whenever the UI resubscribes, so returning to the app
+     * also re-reads the date — which covers the cases the timer alone doesn't, including a
+     * timezone change while the app was in the background.
+     */
+    private val today: Flow<LocalDate> = flow {
+        while (true) {
+            val date = LocalDate.now(clock)
+            emit(date)
+            val nextMidnight = date.plusDays(1).atStartOfDay(clock.zone).toInstant()
+            // coerceAtLeast(1) so a clock already past the computed midnight can't spin this
+            // loop — it just re-emits and recomputes.
+            delay(Duration.between(clock.instant(), nextMidnight).toMillis().coerceAtLeast(1))
+        }
+    }
+
+    // The query travels *with* the data it produced, rather than being combined alongside it.
+    // Collecting `query` as its own source meant `combine` fired the moment the query changed,
+    // pairing the new query with the *previous* query's data — one emission showing the new
+    // date under yesterday's capsules, or `zoomLevel = WEEK` while `periodData` was still
+    // `Day` (which `CalendarContent`'s `as?` casts then rendered as an empty screen rather
+    // than a crash). Emitting only once the matching data arrives makes every `CalendarUiState`
+    // internally consistent by construction. See BACKLOG F5 and ADR-036.
     val uiState: StateFlow<CalendarUiState> = combine(
-        query,
-        query.flatMapLatest { periodDataFlow(it) },
+        query.flatMapLatest { q -> periodDataFlow(q).map { data -> q to data } },
         tagRepository.observeAll(),
         pendingRemoval,
-    ) { q, periodData, allTags, pending ->
+        today,
+    ) { (q, periodData), allTags, pending, today ->
         CalendarUiState(
             isLoading = false,
             zoomLevel = q.zoomLevel,
@@ -66,6 +143,7 @@ class CalendarViewModel @Inject constructor(
             allTags = allTags,
             periodData = periodData.withPendingRemovalApplied(pending),
             pendingRemoval = pending,
+            today = today,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUiState())
 
@@ -128,7 +206,7 @@ class CalendarViewModel @Inject constructor(
     }
 
     fun jumpToToday() {
-        setFocusedDate(LocalDate.now())
+        setFocusedDate(LocalDate.now(clock))
     }
 
     fun selectHeatmapTag(tagId: Long) {
@@ -243,14 +321,34 @@ class CalendarViewModel @Inject constructor(
         // own undo window before starting the new one, rather than stacking snackbars.
         commitPendingRemoval()
         pendingRemoval.value = PendingRemoval(instances, tagName)
+        // The undo window is owned here, not by the snackbar. It used to be the snackbar's
+        // `LaunchedEffect` that decided when to commit, so navigating to Tags or Settings
+        // inside the window cancelled that coroutine with neither branch taken — leaving the
+        // instances hidden from Day zoom but never deleted, and re-showing the snackbar on the
+        // way back (BACKLOG F7). On `viewModelScope`, the timer survives navigation and
+        // rotation, and the snackbar goes back to being only a way to *display* the pending
+        // removal and offer Undo.
+        pendingRemovalJob = viewModelScope.launch {
+            delay(UNDO_WINDOW_MS)
+            commitPendingRemoval()
+        }
     }
 
     fun undoRemoval() {
+        pendingRemovalJob?.cancel()
+        pendingRemovalJob = null
         pendingRemoval.value = null
     }
 
+    /**
+     * Deletes the pending removal now, ending its undo window early. Idempotent, so the
+     * snackbar calling it on dismissal is harmless once [beginPendingRemoval]'s timer has
+     * already fired.
+     */
     fun commitPendingRemoval() {
         val pending = pendingRemoval.value ?: return
+        pendingRemovalJob?.cancel()
+        pendingRemovalJob = null
         pendingRemoval.value = null
         viewModelScope.launch {
             tagInstanceRepository.removeInstances(pending.instances)

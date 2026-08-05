@@ -70,13 +70,14 @@ private val CAPSULE_REMOVE_TARGET_SIZE = 32.dp
 @Composable
 fun DayContent(
     date: LocalDate,
+    today: LocalDate,
     groups: List<TagDisplayGroup>,
     onGroupClick: (TagDisplayGroup) -> Unit,
     onGroupQuickRemove: (TagDisplayGroup) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        CalendarHeaderCard(date = date, modifier = Modifier.padding(16.dp))
+        CalendarHeaderCard(date = date, today = today, modifier = Modifier.padding(16.dp))
         if (groups.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -109,8 +110,8 @@ fun DayContent(
 }
 
 @Composable
-private fun CalendarHeaderCard(date: LocalDate, modifier: Modifier = Modifier) {
-    val (temporalLabelRes, temporalColor) = temporalLabelFor(date)
+private fun CalendarHeaderCard(date: LocalDate, today: LocalDate, modifier: Modifier = Modifier) {
+    val (temporalLabelRes, temporalColor) = temporalLabelFor(date, today)
     val temporalLabelText = stringResource(temporalLabelRes)
     Card(
         modifier = modifier
@@ -185,9 +186,12 @@ private fun TemporalLabel(@StringRes textRes: Int, @ColorInt color: Int, modifie
 private fun contentColorOn(background: Color): Color =
     if (background.luminance() > 0.5f) Color.Black else Color.White
 
-/** Past/today/future relative to the device clock — see `UI_UX.md` § Day zoom and ADR-017. */
-private fun temporalLabelFor(date: LocalDate): Pair<Int, Int> {
-    val today = LocalDate.now()
+/**
+ * Past/today/future relative to [today], which the ViewModel keeps current across midnight
+ * (BACKLOG F6) — this used to read `LocalDate.now()` itself and so never updated.
+ * See `UI_UX.md` § Day zoom and ADR-017.
+ */
+private fun temporalLabelFor(date: LocalDate, today: LocalDate): Pair<Int, Int> {
     return when {
         date.isBefore(today) -> R.string.day_temporal_label_past to TemporalColors.PAST
         date.isAfter(today) -> R.string.day_temporal_label_future to TemporalColors.FUTURE
@@ -265,6 +269,7 @@ private fun DayContentPreview() {
     TagDayTheme {
         DayContent(
             date = LocalDate.of(2026, 7, 25),
+            today = LocalDate.of(2026, 7, 25),
             groups = listOf(
                 TagDisplayGroup(
                     tagId = 1,
@@ -300,6 +305,7 @@ private fun DayContentEmptyPreview() {
     TagDayTheme {
         DayContent(
             date = LocalDate.of(2026, 7, 25),
+            today = LocalDate.of(2026, 7, 25),
             groups = emptyList(),
             onGroupClick = {},
             onGroupQuickRemove = {},
@@ -313,9 +319,9 @@ private fun DayContentEmptyPreview() {
 private fun CalendarHeaderCardTemporalStatesPreview() {
     TagDayTheme {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(16.dp)) {
-            CalendarHeaderCard(date = LocalDate.now().minusDays(5))
-            CalendarHeaderCard(date = LocalDate.now())
-            CalendarHeaderCard(date = LocalDate.now().plusDays(5))
+            CalendarHeaderCard(date = LocalDate.now().minusDays(5), today = LocalDate.now())
+            CalendarHeaderCard(date = LocalDate.now(), today = LocalDate.now())
+            CalendarHeaderCard(date = LocalDate.now().plusDays(5), today = LocalDate.now())
         }
     }
 }

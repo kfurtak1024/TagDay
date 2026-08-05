@@ -76,7 +76,11 @@ re-raised as though it had been missed.
   creation time. Fixing this properly is an ADR: what *should* `film:dune` do on an existing
   Valued `film`, and what should a bare `film` do?
 
-- [ ] **F5 — Every navigation emits one frame of mismatched state.** `CalendarViewModel.kt:55`
+- [x] **F5 — Every navigation emits one frame of mismatched state.** *Fixed — ADR-036 point 1.
+  The query now travels with its data. Guarded by a test that records every emission and was
+  confirmed to fail against the old implementation.*
+
+  Original finding: `CalendarViewModel.kt:55`
   combines `query` with `query.flatMapLatest { periodDataFlow(it) }`, so `combine` fires on the
   query's own emission before the data flow has switched. Reproduced with a throwaway test
   against the in-memory fakes:
@@ -95,14 +99,22 @@ re-raised as though it had been missed.
   blank flash rather than a crash. Fix by carrying the query through the data flow so the pair
   can't desync, which also lets those casts become exhaustive.
 
-- [ ] **F6 — Nothing updates at midnight.** `LocalDate.now()` is read ad-hoc during composition
+- [x] **F6 — Nothing updates at midnight.** *Fixed — ADR-036 point 2. `CalendarUiState.today`
+  is observed and re-emitted at midnight; `Clock` is injected so the rollover is unit-tested.
+  A manual clock or timezone change while the app is open is still not caught — see the ADR.*
+
+  Original finding: `LocalDate.now()` was read ad-hoc during composition
   (`DayContent.kt:190`, `WeekContent.kt:51`, `MonthContent.kt:74`, `YearContent.kt:87`,
   `CalendarContent.kt:138`) and once at ViewModel construction (`CalendarViewModel.kt:43`).
   There's no ticker and no `ACTION_DATE_CHANGED`/`ACTION_TIMEZONE_CHANGED` receiver. Leave the
   app open overnight and the header still calls yesterday "Today", the today-ring sits on the
   wrong cell, and the jump-to-today button (ADR-017) hides itself on the wrong day.
 
-- [ ] **F7 — A pending removal can be stranded indefinitely.** `pendingRemoval` lives in the
+- [x] **F7 — A pending removal can be stranded indefinitely.** *Fixed — ADR-036 point 3. The
+  undo window is a `viewModelScope` timer, so it survives navigation and rotation. Process
+  death still cancels it, which leaves the instances undeleted — the safe direction.*
+
+  Original finding: `pendingRemoval` lives in the
   ViewModel but is only ever resolved by the snackbar's `LaunchedEffect`
   (`CalendarContent.kt:113`). Navigate to Tags or Settings inside the undo window and that
   coroutine is cancelled with neither `undoRemoval()` nor `commitPendingRemoval()` — the
@@ -133,8 +145,12 @@ re-raised as though it had been missed.
 
 ## Tier 3 — state & lifecycle
 
-- [ ] **F10 — No saved state anywhere in the app.** *Decided — see ADR-035, which covers this
-  and F12 together. Code not yet written; F6 should land with or before it.* `CalendarViewModel.query` (zoom, focused
+- [x] **F10 — No saved state anywhere in the app.** *Fixed — ADR-035. `CalendarViewModel`'s
+  query is backed by `SavedStateHandle`; `selectedGroupKey` and the Tags dialogs are
+  `rememberSaveable` (the latter now keyed by tag id rather than a `Tag` snapshot). F6 landed
+  with it, so a restored focused date doesn't restore a stale idea of today.*
+
+  Original finding: `CalendarViewModel.query` (zoom, focused
   date, selected heatmap tag) is a plain `MutableStateFlow` with no `SavedStateHandle`; and
   `selectedGroupKey` (`CalendarScreen.kt:25`) plus `renamingTag`/`recoloringTag`
   (`TagsScreen.kt:21`) are `remember`, not `rememberSaveable`. Rotating with a sheet or dialog
@@ -150,9 +166,12 @@ re-raised as though it had been missed.
 
 ## Tier 4 — UI/UX & accessibility
 
-- [ ] **F12 — Month/Year zoom lands on a dead end every time.** *Decided — see ADR-035:
-  remember the last tag picked, session-scoped; cross-restart memory deferred rather than
-  taking a new dependency. Code not yet written.* `selectedTagId` starts `null`,
+- [x] **F12 — Month/Year zoom lands on a dead end every time.** *Fixed — ADR-035, via F10's
+  `SavedStateHandle`: the picked tag survives process death. Still empty on a genuinely first
+  use and after a cold start, which is what ADR-035 decided; cross-restart memory remains
+  deferred rather than taking a preferences dependency.*
+
+  Original finding: `selectedTagId` starts `null`,
   is never defaulted and never persisted, so the ordinary zoom-out gesture from Week hits "Pick
   a tag above to see its heatmap" — on every launch, and again after process death. Worth
   deciding whether it defaults to the first tag, the last used, or stays deliberately empty.
@@ -227,6 +246,12 @@ re-raised as though it had been missed.
   passes with 5 warnings but no baseline and no gate. Separately: the sheet is 50% of screen
   height, the capsule `FlowRow` and the Year 4×3 grid are portrait-shaped, and nothing uses
   window size classes. R8 being off in release is deliberate and stays deferred to M6.
+
+- [ ] **F24 — `hiltViewModel()` is deprecated where it's used.** Both `CalendarScreen` and
+  `TagsScreen` call `androidx.hilt.navigation.compose.hiltViewModel`, which has moved to
+  `androidx.hilt.lifecycle.viewmodel.compose`. Compiler warning on every build, and the two
+  call sites are the only ones. *(Noticed while working F5–F10, 2026-08-04 — not part of the
+  original audit.)*
 
 ---
 

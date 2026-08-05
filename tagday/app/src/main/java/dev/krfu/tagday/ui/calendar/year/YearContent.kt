@@ -50,6 +50,7 @@ private const val WEEKS_PER_TILE = 6
 @Composable
 fun YearContent(
     focusedDate: LocalDate,
+    today: LocalDate,
     allTags: List<Tag>,
     selectedTagId: Long?,
     countsByDate: Map<Int, Int>,
@@ -84,7 +85,6 @@ fun YearContent(
                             .fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        val today = LocalDate.now()
                         (1..GRID_COLUMNS).forEach { column ->
                             val month = row * GRID_COLUMNS + column
                             val monthDate = LocalDate.of(focusedDate.year, month, 1)
@@ -175,6 +175,7 @@ private fun YearContentPreview() {
         val focusedDate = LocalDate.now()
         YearContent(
             focusedDate = focusedDate,
+            today = focusedDate,
             allTags = listOf(
                 Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0),
             ),
@@ -196,6 +197,7 @@ private fun YearContentEmptyPreview() {
     TagDayTheme {
         YearContent(
             focusedDate = LocalDate.of(2026, 7, 22),
+            today = LocalDate.of(2026, 7, 22),
             allTags = emptyList(),
             selectedTagId = null,
             countsByDate = emptyMap(),

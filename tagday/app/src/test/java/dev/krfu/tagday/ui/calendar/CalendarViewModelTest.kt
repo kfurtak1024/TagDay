@@ -1,6 +1,9 @@
 package dev.krfu.tagday.ui.calendar
 
+import androidx.lifecycle.SavedStateHandle
 import dev.krfu.tagday.MainDispatcherRule
+import dev.krfu.tagday.MutableClock
+import dev.krfu.tagday.collectInto
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
@@ -8,7 +11,11 @@ import dev.krfu.tagday.data.model.TagDisplayGroup
 import dev.krfu.tagday.data.repository.FakeTagInstanceRepository
 import dev.krfu.tagday.data.repository.FakeTagRepository
 import dev.krfu.tagday.keepSubscribed
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -43,10 +50,16 @@ class CalendarViewModelTest {
     private fun viewModelWith(
         instances: List<TagInstance> = emptyList(),
         tags: List<Tag> = listOf(walk, movie),
+        clock: Clock = Clock.systemDefaultZone(),
+        savedState: SavedStateHandle = SavedStateHandle(),
     ): Triple<CalendarViewModel, FakeTagRepository, FakeTagInstanceRepository> {
         val tagRepository = FakeTagRepository(tags)
         val instanceRepository = FakeTagInstanceRepository(instances, tags.associateBy { it.id })
-        return Triple(CalendarViewModel(tagRepository, instanceRepository), tagRepository, instanceRepository)
+        return Triple(
+            CalendarViewModel(tagRepository, instanceRepository, clock, savedState),
+            tagRepository,
+            instanceRepository,
+        )
     }
 
     private fun CalendarUiState.dayGroups(): List<TagDisplayGroup> =
@@ -81,6 +94,128 @@ class CalendarViewModelTest {
         viewModel.setZoom(ZoomLevel.MONTH)
         viewModel.stepTime(-1)
         assertEquals(start.plusDays(1).minusMonths(1), viewModel.uiState.value.focusedDate)
+    }
+
+    /**
+     * Every emission must be internally consistent — the period data has to belong to the
+     * date and zoom level emitted alongside it. Asserting on `.value` after the fact can't
+     * catch this: the *settled* state was always right, and it was the intermediate emission
+     * that paired a new query with the previous query's data (BACKLOG F5, ADR-036). So this
+     * records every emission and checks all of them.
+     */
+    @Test
+    fun everyEmission_pairsTheDataWithItsOwnQuery() = runTest {
+        val (viewModel, _, _) = viewModelWith(instances = listOf(instance(id = 1, tagId = walk.id)))
+        val emissions = mutableListOf<CalendarUiState>()
+        collectInto(viewModel.uiState, emissions)
+
+        viewModel.stepTime(1)
+        viewModel.setZoom(ZoomLevel.WEEK)
+        viewModel.setZoom(ZoomLevel.DAY)
+        viewModel.stepTime(-1)
+
+        assertTrue("expected several emissions, got ${emissions.size}", emissions.size > 1)
+        emissions.forEach { state ->
+            // Day data may only appear at Day zoom, Week data at Week zoom, and so on. The
+            // initial state is the one exemption: it's `stateIn`'s placeholder, not a query
+            // result, and it carries an empty Day payload before anything has been collected.
+            if (state.isLoading) return@forEach
+            val expected = when (state.zoomLevel) {
+                ZoomLevel.DAY -> CalendarPeriodData.Day::class
+                ZoomLevel.WEEK -> CalendarPeriodData.Week::class
+                ZoomLevel.MONTH, ZoomLevel.YEAR -> CalendarPeriodData.Heatmap::class
+            }
+            assertEquals(
+                "zoom ${state.zoomLevel} carried ${state.periodData::class.simpleName}",
+                expected,
+                state.periodData::class,
+            )
+            // And the Day payload must be the *focused* day's, not a neighbour's.
+            val groups = (state.periodData as? CalendarPeriodData.Day)?.groups ?: return@forEach
+            val expectedGroupCount = if (state.focusedDate == today) 1 else 0
+            assertEquals(
+                "groups for ${state.focusedDate} (today is $today)",
+                expectedGroupCount,
+                groups.size,
+            )
+        }
+    }
+
+    @Test
+    fun today_rollsOverAtMidnight() = runTest {
+        // Ten seconds to midnight UTC. Nothing about the focused date changes — it's the
+        // ViewModel's notion of *today* that has to move, since that's what every zoom level's
+        // today-highlight and the jump-to-today button key off (BACKLOG F6).
+        val clock = MutableClock(Instant.parse("2026-08-03T23:59:50Z"))
+        val (viewModel, _, _) = viewModelWith(clock = clock)
+        keepSubscribed(viewModel.uiState)
+
+        assertEquals(LocalDate.of(2026, 8, 3), viewModel.uiState.value.today)
+
+        clock.instant = Instant.parse("2026-08-04T00:00:01Z")
+        advanceTimeBy(11_000)
+
+        assertEquals(LocalDate.of(2026, 8, 4), viewModel.uiState.value.today)
+        // And it keeps going, rather than firing once and stopping.
+        clock.instant = Instant.parse("2026-08-05T00:00:01Z")
+        advanceTimeBy(Duration.ofDays(1).toMillis())
+        assertEquals(LocalDate.of(2026, 8, 5), viewModel.uiState.value.today)
+    }
+
+    @Test
+    fun pendingRemoval_commitsItselfWithoutTheSnackbar() = runTest {
+        // The undo window belongs to the ViewModel, not the snackbar's LaunchedEffect. Leaving
+        // the Calendar screen mid-window used to cancel that effect with neither Undo nor
+        // commit taken, stranding the instances — hidden from Day zoom but never deleted
+        // (BACKLOG F7). Nothing here touches the UI: the removal has to land on its own.
+        val doomed = instance(id = 1, tagId = walk.id)
+        val (viewModel, _, instanceRepository) = viewModelWith(instances = listOf(doomed))
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.removeInstance(doomed, walk.name)
+        assertTrue("hidden optimistically", viewModel.uiState.value.dayGroups().isEmpty())
+        assertEquals("but not yet deleted", listOf(doomed), instanceRepository.instances.value)
+
+        advanceTimeBy(5_000)
+
+        assertEquals(emptyList<TagInstance>(), instanceRepository.instances.value)
+        assertNull(viewModel.uiState.value.pendingRemoval)
+    }
+
+    @Test
+    fun undoRemoval_cancelsTheCommitTimer() = runTest {
+        val spared = instance(id = 1, tagId = walk.id)
+        val (viewModel, _, instanceRepository) = viewModelWith(instances = listOf(spared))
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.removeInstance(spared, walk.name)
+        viewModel.undoRemoval()
+        // Well past the window: the timer must be cancelled, not merely ignored.
+        advanceTimeBy(30_000)
+
+        assertEquals(listOf(spared), instanceRepository.instances.value)
+        assertEquals(1, viewModel.uiState.value.dayGroups().size)
+    }
+
+    @Test
+    fun navigationState_survivesProcessDeath() = runTest {
+        // A second ViewModel built from the same SavedStateHandle stands in for the one Android
+        // recreates after killing the process (ADR-035, BACKLOG F10/F12).
+        val savedState = SavedStateHandle()
+        val (viewModel, _, _) = viewModelWith(savedState = savedState)
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.setZoom(ZoomLevel.MONTH)
+        viewModel.setFocusedDate(today.minusMonths(3))
+        viewModel.selectHeatmapTag(movie.id)
+
+        val (restored, _, _) = viewModelWith(savedState = savedState)
+        keepSubscribed(restored.uiState)
+
+        assertEquals(ZoomLevel.MONTH, restored.uiState.value.zoomLevel)
+        assertEquals(today.minusMonths(3), restored.uiState.value.focusedDate)
+        // The heatmap tag in particular: without it, zooming out lands back on "Pick a tag".
+        assertEquals(movie.id, restored.uiState.value.selectedTagId)
     }
 
     @Test

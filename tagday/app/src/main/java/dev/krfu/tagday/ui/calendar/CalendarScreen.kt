@@ -5,6 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -22,12 +23,14 @@ fun CalendarScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingTagEdit by viewModel.pendingTagEdit.collectAsStateWithLifecycle()
 
-    var selectedGroupKey by remember { mutableStateOf<Long?>(null) }
+    // rememberSaveable, not remember: rotating with the sheet open used to close it (BACKLOG
+    // F10). A tag id is saveable as-is.
+    var selectedGroupKey by rememberSaveable { mutableStateOf<Long?>(null) }
     // True only for a tag just created via createTagForEditing, opened before it has any
     // instance — lets selectedGroup fall back to a synthetic empty group below instead of
     // null. Any other selection (tapping a real capsule) leaves this false, so removing an
     // existing group's last instance still auto-dismisses the sheet as before.
-    var selectedGroupIsFreshTag by remember { mutableStateOf(false) }
+    var selectedGroupIsFreshTag by rememberSaveable { mutableStateOf(false) }
     val dayGroups = (uiState.periodData as? CalendarPeriodData.Day)?.groups.orEmpty()
     val selectedGroup = selectedGroupKey?.let { tagId ->
         dayGroups.find { it.tagId == tagId } ?: if (selectedGroupIsFreshTag) {

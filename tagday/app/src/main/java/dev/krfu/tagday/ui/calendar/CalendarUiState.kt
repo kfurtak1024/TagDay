@@ -11,4 +11,11 @@ data class CalendarUiState(
     val allTags: List<Tag> = emptyList(),
     val periodData: CalendarPeriodData = CalendarPeriodData.Day(emptyList()),
     val pendingRemoval: PendingRemoval? = null,
+    /**
+     * Today's date as the ViewModel currently understands it, re-emitted when the day rolls
+     * over. The zoom levels take their today-highlights from this rather than calling
+     * `LocalDate.now()` during composition, which never updated — see `CalendarViewModel.today`
+     * and BACKLOG F6.
+     */
+    val today: LocalDate = LocalDate.now(),
 )

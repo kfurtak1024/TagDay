@@ -3,12 +3,11 @@ package dev.krfu.tagday.ui.tags
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.krfu.tagday.data.local.entity.Tag
 
 @Composable
 fun TagsScreen(
@@ -18,15 +17,19 @@ fun TagsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    var renamingTag by remember { mutableStateOf<Tag?>(null) }
-    var recoloringTag by remember { mutableStateOf<Tag?>(null) }
+    // Ids rather than `Tag` snapshots, so these can be `rememberSaveable` and survive rotation
+    // (BACKLOG F10) — and so an open dialog reflects a concurrent edit rather than a stale copy.
+    var renamingTagId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var recoloringTagId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val renamingTag = renamingTagId?.let { id -> uiState.tags.find { it.id == id } }
+    val recoloringTag = recoloringTagId?.let { id -> uiState.tags.find { it.id == id } }
 
     TagsContent(
         uiState = uiState,
         onNavigateBack = onNavigateBack,
         onQueryChange = viewModel::onQueryChange,
-        onRenameClick = { tag -> renamingTag = tag },
-        onColorClick = { tag -> recoloringTag = tag },
+        onRenameClick = { tag -> renamingTagId = tag.id },
+        onColorClick = { tag -> recoloringTagId = tag.id },
         onDeleteClick = { tag -> viewModel.requestDelete(tag) },
         onConfirmDelete = viewModel::confirmDelete,
         onCancelDelete = viewModel::cancelDelete,
@@ -36,7 +39,7 @@ fun TagsScreen(
     renamingTag?.let { tag ->
         RenameTagDialog(
             tag = tag,
-            onDismiss = { renamingTag = null },
+            onDismiss = { renamingTagId = null },
             onRename = { t, newName -> viewModel.renameTag(t, newName) },
         )
     }
@@ -44,10 +47,10 @@ fun TagsScreen(
     recoloringTag?.let { tag ->
         ColorPickerDialog(
             initialColor = tag.color,
-            onDismiss = { recoloringTag = null },
+            onDismiss = { recoloringTagId = null },
             onSave = { color ->
                 viewModel.updateColor(tag, color)
-                recoloringTag = null
+                recoloringTagId = null
             },
         )
     }

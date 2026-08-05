@@ -472,6 +472,18 @@ not scoped by this doc; don't design ahead of it.
   - **Rated creation (ADR-031)**: pick Rated for a new name, press `+`, and confirm the sheet
     opens on an empty Rated panel rather than the day showing an unrated bare name; then check
     `mood:***` still creates it rated in one step without opening the sheet.
+  - **Calendar state (ADR-036)**: step a day back and forth and watch for a flash of the
+    previous day's capsules under the new date, and for Week/Month/Year rendering empty for a
+    frame when the zoom changes — both should be gone. Leave the app open across midnight (or
+    move the device clock forward) and confirm the Day header's pill flips Future→Today→Past,
+    the Week/Month/Year today-highlights move, and the jump-to-today button appears/disappears
+    on the right day. Remove a tag and navigate to Tags *before* the snackbar fades: the
+    deletion must still land, the tag must not reappear on the Calendar, and coming back must
+    not re-show the snackbar. Then rotate mid-undo-window and confirm Undo still works.
+  - **Saved state (ADR-035)**: pick a heatmap tag at Month zoom, background the app, force-stop
+    it from Settings, reopen — zoom level, date and picked tag should all come back. Rotate
+    with the instance sheet open, and with the Tags rename and color dialogs open; none should
+    close.
   - **Period row (ADR-033)**: at Week/Month/Year, confirm the label matches what's on screen
     and that `‹`/`›` move exactly one week/month/year; check the week label at a month boundary
     (`27 Jul – 2 Aug 2026`) and a year boundary. Tap the label, pick a date, and confirm the

@@ -30,6 +30,7 @@ import java.time.format.TextStyle
 @Composable
 fun MonthContent(
     focusedDate: LocalDate,
+    today: LocalDate,
     allTags: List<Tag>,
     selectedTagId: Long?,
     countsByDate: Map<Int, Int>,
@@ -52,6 +53,7 @@ fun MonthContent(
         } else {
             MonthGrid(
                 focusedDate = focusedDate,
+                today = today,
                 tagColor = selectedTag.color,
                 countsByDate = countsByDate,
                 onDayClick = onDayClick,
@@ -65,13 +67,13 @@ fun MonthContent(
 @Composable
 internal fun MonthGrid(
     focusedDate: LocalDate,
+    today: LocalDate,
     tagColor: Int,
     countsByDate: Map<Int, Int>,
     onDayClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val cells = CalendarDateRanges.monthGridCells(focusedDate)
-    val today = LocalDate.now()
     val locale = LocalLocale.current.platformLocale
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -119,6 +121,7 @@ private fun MonthContentPreview() {
         val focusedDate = LocalDate.now()
         MonthContent(
             focusedDate = focusedDate,
+            today = focusedDate,
             allTags = listOf(
                 Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0),
             ),

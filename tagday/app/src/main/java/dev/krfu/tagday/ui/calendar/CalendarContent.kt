@@ -116,10 +116,14 @@ fun CalendarContent(
             message = undoMessage,
             actionLabel = undoActionLabel,
             // Explicit: showSnackbar defaults to Indefinite whenever actionLabel is
-            // non-null, but delay-delete needs the commit to actually fire on its own
-            // after a few seconds of inaction, not sit there forever. See ADR-019.
+            // non-null, and this should disappear on roughly the same schedule as the
+            // deletion it's offering to undo. See ADR-019.
             duration = SnackbarDuration.Short,
         )
+        // The commit no longer depends on this coroutine surviving — `CalendarViewModel` owns
+        // the undo window and will delete on its own timer whatever happens to this screen
+        // (BACKLOG F7, ADR-036). Committing here just means "dismissed early, don't wait out
+        // the rest of the window"; it's idempotent if the timer has already fired.
         if (result == SnackbarResult.ActionPerformed) onUndoRemoval() else onCommitPendingRemoval()
     }
 
@@ -135,7 +139,9 @@ fun CalendarContent(
                             onZoomLevelPicked = onZoomLevelPicked,
                         )
                         // Day zoom only, and only once actually away from today — see ADR-017.
-                        if (uiState.zoomLevel == ZoomLevel.DAY && uiState.focusedDate != LocalDate.now()) {
+                        // `uiState.today` rather than `LocalDate.now()`: read here, the date
+                        // never refreshed at midnight (BACKLOG F6).
+                        if (uiState.zoomLevel == ZoomLevel.DAY && uiState.focusedDate != uiState.today) {
                             IconButton(onClick = onJumpToToday) {
                                 Icon(
                                     imageVector = ImageVector.vectorResource(R.drawable.ic_target),
@@ -221,6 +227,7 @@ fun CalendarContent(
                     when (zoom) {
                         ZoomLevel.DAY -> DayContent(
                             date = uiState.focusedDate,
+                            today = uiState.today,
                             groups = (uiState.periodData as? CalendarPeriodData.Day)?.groups.orEmpty(),
                             onGroupClick = onGroupClick,
                             onGroupQuickRemove = onGroupQuickRemove,
@@ -228,12 +235,14 @@ fun CalendarContent(
 
                         ZoomLevel.WEEK -> WeekContent(
                             focusedDate = uiState.focusedDate,
+                            today = uiState.today,
                             groupsByDate = (uiState.periodData as? CalendarPeriodData.Week)?.groupsByDate.orEmpty(),
                             onDayClick = onDayClick,
                         )
 
                         ZoomLevel.MONTH -> MonthContent(
                             focusedDate = uiState.focusedDate,
+                            today = uiState.today,
                             allTags = uiState.allTags,
                             selectedTagId = uiState.selectedTagId,
                             countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)?.countsByDate.orEmpty(),
@@ -243,6 +252,7 @@ fun CalendarContent(
 
                         ZoomLevel.YEAR -> YearContent(
                             focusedDate = uiState.focusedDate,
+                            today = uiState.today,
                             allTags = uiState.allTags,
                             selectedTagId = uiState.selectedTagId,
                             countsByDate = (uiState.periodData as? CalendarPeriodData.Heatmap)

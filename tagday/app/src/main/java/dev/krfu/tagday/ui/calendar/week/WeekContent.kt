@@ -34,6 +34,7 @@ private val weekdayFormatter = DateTimeFormatter.ofPattern("EEE")
 @Composable
 fun WeekContent(
     focusedDate: LocalDate,
+    today: LocalDate,
     groupsByDate: Map<Int, List<TagDisplayGroup>>,
     onDayClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
@@ -48,7 +49,6 @@ fun WeekContent(
             .fillMaxSize()
             .padding(16.dp),
     ) {
-        val today = LocalDate.now()
         days.forEach { day ->
             WeekDayRow(
                 date = day,
@@ -120,6 +120,7 @@ private fun WeekContentPreview() {
         val monday = CalendarDateRanges.weekRange(LocalDate.now()).start
         WeekContent(
             focusedDate = LocalDate.now(),
+            today = LocalDate.now(),
             groupsByDate = mapOf(
                 monday.toEpochDay().toInt() to listOf(
                     TagDisplayGroup(1, "walk", 0xFF81C784.toInt(), TagType.SIMPLE, emptyList(), "walk"),

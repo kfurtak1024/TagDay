@@ -1693,3 +1693,73 @@ of BACKLOG F23 — kept on the table, but it answers the rotation case by removi
 which is a bigger product decision than this ADR should make in passing.
 
 **Not verified on a device** — see `UI_UX.md`'s manual-check list.
+
+---
+
+## ADR-036: The calendar's state stops lying — paired emissions, a live "today", a ViewModel-owned undo window
+
+**Decision:** Three fixes to `CalendarViewModel` that share one root cause: state the UI
+presented as fact that wasn't. Fixes BACKLOG F5, F6 and F7. (F10/F12's `SavedStateHandle` lands
+alongside them under ADR-035.)
+
+1. **The query travels with its data.** `uiState` no longer collects `query` as a `combine`
+   source of its own. It was both a source *and* the input to the `flatMapLatest` producing
+   `periodData`, so `combine` fired the moment the query changed and paired the new query with
+   the **previous** query's data — a real emission carrying tomorrow's date under today's
+   capsules, or `zoomLevel = WEEK` while `periodData` was still `Day`. `CalendarContent`'s
+   `as? CalendarPeriodData.Week` casts are what turned the latter into a blank screen instead
+   of a crash. Now `query.flatMapLatest { q -> periodDataFlow(q).map { q to it } }` emits the
+   pair, so a `CalendarUiState` is consistent by construction.
+2. **`today` is observed, not read.** A `Flow<LocalDate>` that emits the current date and
+   re-emits at the next local midnight, exposed as `CalendarUiState.today`. Every
+   today-highlight — the Day header's past/today/future pill, Week's row, Month's ring, Year's
+   tile border, the jump-to-today button's visibility — took its own `LocalDate.now()` during
+   composition, so none of them ever changed: left open past midnight, the app kept calling
+   yesterday "Today".
+3. **The undo window moved into the ViewModel.** `beginPendingRemoval` now launches its own
+   `viewModelScope` timer. The commit previously lived in the snackbar's `LaunchedEffect`, so
+   navigating to Tags or Settings inside the window cancelled it with *neither* branch taken —
+   the instances stayed hidden from Day zoom but were never deleted, and the snackbar
+   reappeared on the way back. The snackbar is now display-and-undo only.
+
+**Why:** these look like three unrelated bugs and are really one habit — deriving state at the
+point of *use* rather than owning it. Each was invisible in the settled state, which is why
+they survived: `uiState.value` was always right afterwards, `LocalDate.now()` is right at the
+moment you call it, and the pending removal did commit as long as nobody navigated. They only
+show up in the transitions, which is where a user actually lives.
+
+Point 3 is also the one that could lose data, in the sense that matters for a diary: it
+couldn't delete anything the user hadn't asked to delete, but it could leave the app claiming
+something was removed when it wasn't. Failing toward "still there" is the right direction, and
+that's still what happens if the process dies mid-window — `viewModelScope` is cancelled, the
+timer dies, the instances survive. Worth stating plainly rather than pretending the window is
+transactional.
+
+**Alternatives considered:** (1) For point 1, keep the immediate query emission and blank the
+period data until the matching data lands. (2) For point 2, a `BroadcastReceiver` on
+`ACTION_DATE_CHANGED`/`ACTION_TIMEZONE_CHANGED`. (3) For point 2, recompute today only when the
+screen resumes, with no timer at all. (4) For point 3, commit the pending removal from
+`onCleared()`, or from a `DisposableEffect` when the screen leaves composition.
+
+**Why:** (1) trades a wrong-data flash for an empty-data flash, and "Nothing tagged yet" on
+every swipe reads worse than a frame of lag; the DB round-trip here is a local query over a
+handful of rows. (2) is the thorough answer and would also catch a manual clock change, but it
+needs a registered receiver and a lifecycle to unregister it, for a case a personal diary meets
+approximately never — the timer plus `WhileSubscribed`'s restart-on-resubscribe already covers
+rollover-while-open and any change that happened while backgrounded. Worth revisiting only if
+the gap is ever actually felt. (3) misses the case the finding was about: the app sitting open
+across midnight. (4) doesn't work for the navigation case, which is the common one:
+`onCleared` isn't called when you merely navigate to another destination, and it isn't
+guaranteed on process death either, while a `DisposableEffect` would also fire on rotation and
+so cut the undo window short. Owning the timer where the state lives makes the lifecycle
+question moot.
+
+**Implementation note:** `Clock` is now injected (`di/TimeModule.kt`) rather than reached for
+statically, so the midnight rollover is testable — `MutableClock` in the test sources moves the
+date while `runTest`'s scheduler moves the delay, and the two together cross midnight in a
+unit test. Without that, point 2 could only be verified by waiting until midnight.
+
+**Verification:** point 1's test records *every* emission rather than asserting on `.value`,
+and was confirmed to fail against the previous implementation before the fix was kept. Points 2
+and 3 have tests that drive virtual time. **Not verified on a device** — see `UI_UX.md`'s
+manual-check list.
