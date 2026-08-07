@@ -31,9 +31,11 @@ the tag *is* the release record, no separate release branch needed.
   toolchain compiles, `jvmTarget` decides what it emits.
 - `./gradlew lintDebug` — Android Lint, with `warningsAsErrors = true` in
   `app/build.gradle.kts`, so a new warning fails the build rather than accumulating unread.
-  Three "a newer version of X exists" checks are disabled there (`OldTargetApi`,
-  `NewerVersionAvailable`, `AndroidGradlePluginVersion`): they fire on their own schedule with
-  no code change, so as errors they'd break a build nobody touched. The gate covers **Android
+  The "a newer version of X exists" family is disabled there (`OldTargetApi`,
+  `NewerVersionAvailable`, `GradleDependency`, `AndroidGradlePluginVersion`): they fire on their
+  own schedule with no code change, so as errors they break a build nobody touched. All four are
+  needed — `NewerVersionAvailable` and `GradleDependency` overlap but don't always both fire,
+  and missing the latter broke CI once. The gate covers **Android
   Lint only** — Kotlin compiler warnings are a separate stream and are not gated, so a
   deprecated API still surfaces as a `w:` line rather than a failure.
 - Unit test HTML reports are uploaded as a workflow artifact if the run fails, for

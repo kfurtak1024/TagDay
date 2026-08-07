@@ -13,9 +13,11 @@ import dev.krfu.tagday.data.repository.FakeTagInstanceRepository
 import dev.krfu.tagday.data.repository.FakeTagRepository
 import dev.krfu.tagday.keepSubscribed
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -29,6 +31,11 @@ import org.junit.Test
  * real branching logic living in the ViewModel, not thin delegation, so they get tests of
  * their own — see `TESTING.md`.
  */
+// `TestScope.advanceTimeBy` is still @ExperimentalCoroutinesApi in coroutines-test 1.9.0 —
+// both the millis and the kotlin.time.Duration overloads, so there's no stable alternative to
+// switch to. Opting in here matches `MainDispatcherRule`, which does the same for
+// `UnconfinedTestDispatcher`/`setMain`.
+@OptIn(ExperimentalCoroutinesApi::class)
 class CalendarViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -157,12 +164,12 @@ class CalendarViewModelTest {
         assertEquals(LocalDate.of(2026, 8, 3), viewModel.uiState.value.today)
 
         clock.instant = Instant.parse("2026-08-04T00:00:01Z")
-        advanceTimeBy(11_000)
+        advanceTimeBy(11.seconds)
 
         assertEquals(LocalDate.of(2026, 8, 4), viewModel.uiState.value.today)
         // And it keeps going, rather than firing once and stopping.
         clock.instant = Instant.parse("2026-08-05T00:00:01Z")
-        advanceTimeBy(Duration.ofDays(1).toMillis())
+        advanceTimeBy(1.days)
         assertEquals(LocalDate.of(2026, 8, 5), viewModel.uiState.value.today)
     }
 
@@ -180,7 +187,7 @@ class CalendarViewModelTest {
         assertTrue("hidden optimistically", viewModel.uiState.value.dayGroups().isEmpty())
         assertEquals("but not yet deleted", listOf(doomed), instanceRepository.instances.value)
 
-        advanceTimeBy(5_000)
+        advanceTimeBy(5.seconds)
 
         assertEquals(emptyList<TagInstance>(), instanceRepository.instances.value)
         assertNull(viewModel.uiState.value.pendingRemoval)
@@ -195,7 +202,7 @@ class CalendarViewModelTest {
         viewModel.removeInstance(spared, walk.name)
         viewModel.undoRemoval()
         // Well past the window: the timer must be cancelled, not merely ignored.
-        advanceTimeBy(30_000)
+        advanceTimeBy(30.seconds)
 
         assertEquals(listOf(spared), instanceRepository.instances.value)
         assertEquals(1, viewModel.uiState.value.dayGroups().size)

@@ -66,13 +66,24 @@ android {
     // every future deprecation in a dependency bump into a build break — a bigger tradeoff,
     // deliberately not taken here.
     //
-    // The three disabled checks all report "a newer version of X exists". They fire on their
-    // own schedule, with no code change and nothing wrong in the repo, so as errors they'd
-    // break an untouched build. Dependency currency is a deliberate decision (`libs.versions.
-    // toml` pins coroutines to match the transitive runtime version), not a build failure.
+    // The disabled checks are the whole "a newer version of X exists" family. They fire on
+    // their own schedule, with no code change and nothing wrong in the repo, so as errors they
+    // break an untouched build — which is exactly what happened: `GradleDependency` was missed
+    // from this list at first and broke CI days after the gate was added, on a commit that
+    // touched none of it. Dependency currency is a deliberate decision here (`libs.versions.
+    // toml` pins coroutines to match the version arriving transitively), not a build failure.
+    //
+    // Note `NewerVersionAvailable` and `GradleDependency` overlap but are not the same check
+    // and don't always both fire — locally the coroutines pin surfaced as the former, on CI as
+    // the latter. Disabling one is not enough.
     lint {
         warningsAsErrors = true
-        disable += setOf("OldTargetApi", "NewerVersionAvailable", "AndroidGradlePluginVersion")
+        disable += setOf(
+            "OldTargetApi",
+            "NewerVersionAvailable",
+            "GradleDependency",
+            "AndroidGradlePluginVersion",
+        )
     }
 }
 
