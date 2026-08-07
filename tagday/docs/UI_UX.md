@@ -472,6 +472,14 @@ not scoped by this doc; don't design ahead of it.
   - **Rated creation (ADR-031)**: pick Rated for a new name, press `+`, and confirm the sheet
     opens on an empty Rated panel rather than the day showing an unrated bare name; then check
     `mood:***` still creates it rated in one step without opening the sheet.
+  - **Sheet dismissal (ADR-021 Amendment 1)**: confirm a back press (and the predictive-back
+    gesture) closes the instance sheet *with* the slide-out animation, while a scrim tap and a
+    downward drag on the panel still do nothing. With the keyboard up in the add-value field,
+    check back dismisses the keyboard first rather than the sheet — and while you're there,
+    confirm the keyboard doesn't cover the add-value row (the untested half of F15).
+  - **Tag colours (F19)**: create tags until the palette is used up, delete one from the
+    middle, add another, and confirm it takes the freed colour rather than duplicating one
+    still in use — most visible as the dots in Week zoom.
   - **TalkBack pass (ADR-038)** — the one change here that can only be judged on a device:
     turn TalkBack on and swipe through Week, confirming each row reads as one utterance
     ("Monday 20 July: walk, reading") rather than a date followed by silent dots. Do the same

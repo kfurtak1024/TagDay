@@ -48,6 +48,32 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        // Robolectric needs the merged resources/manifest to inflate anything — without this,
+        // Compose tests fail at startup rather than at the assertion.
+        unitTests.isIncludeAndroidResources = true
+    }
+
+    // The Android Lint warning count is zero, so the gate holds it there rather than letting it
+    // creep back (BACKLOG F23) — verified by reintroducing `Configuration.screenHeightDp` and
+    // confirming the build then fails, rather than assuming the flag does what it says.
+    //
+    // Scope worth knowing: this covers **Android Lint** only, not Kotlin compiler warnings.
+    // Of the two warnings just cleaned up, `Configuration.screenHeightDp` was a lint check and
+    // is guarded here; the deprecated `hiltViewModel` import was a `kotlinc` warning and is
+    // not. Gating those too means `allWarningsAsErrors` on the Kotlin compiler, which turns
+    // every future deprecation in a dependency bump into a build break — a bigger tradeoff,
+    // deliberately not taken here.
+    //
+    // The three disabled checks all report "a newer version of X exists". They fire on their
+    // own schedule, with no code change and nothing wrong in the repo, so as errors they'd
+    // break an untouched build. Dependency currency is a deliberate decision (`libs.versions.
+    // toml` pins coroutines to match the transitive runtime version), not a build failure.
+    lint {
+        warningsAsErrors = true
+        disable += setOf("OldTargetApi", "NewerVersionAvailable", "AndroidGradlePluginVersion")
+    }
 }
 
 kotlin {
@@ -78,6 +104,11 @@ dependencies {
     ksp(libs.hilt.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Compose UI tests run on the JVM under Robolectric rather than on a device — see ADR-040
+    // and TESTING.md. Both of these are test-only and never reach the APK.
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

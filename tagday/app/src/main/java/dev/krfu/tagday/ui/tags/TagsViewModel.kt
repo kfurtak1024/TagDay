@@ -60,10 +60,26 @@ class TagsViewModel @Inject constructor(
         }
     }
 
-    suspend fun renameTag(tag: Tag, newName: String): Boolean {
-        val trimmed = newName.trim()
-        if (tagRepository.nameExists(trimmed, excludingId = tag.id)) return false
-        tagRepository.renameTag(tag, trimmed)
-        return true
+    /**
+     * Renames on [viewModelScope] and reports the outcome through [onResult] — `false` means the
+     * name is taken. It used to be a plain `suspend fun` the dialog called from its own
+     * `rememberCoroutineScope`, which tied the *write* to the composition: dismissing the dialog
+     * or rotating between the duplicate check and the update cancelled it, and the rename
+     * silently didn't happen (BACKLOG F22). Every other mutation here already goes through
+     * `viewModelScope`; this one now matches.
+     *
+     * [onResult] may fire after the dialog is gone, which is harmless — it only drives the
+     * dialog's own state, and nothing observes it once that state is discarded.
+     */
+    fun renameTag(tag: Tag, newName: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val trimmed = newName.trim()
+            if (tagRepository.nameExists(trimmed, excludingId = tag.id)) {
+                onResult(false)
+                return@launch
+            }
+            tagRepository.renameTag(tag, trimmed)
+            onResult(true)
+        }
     }
 }

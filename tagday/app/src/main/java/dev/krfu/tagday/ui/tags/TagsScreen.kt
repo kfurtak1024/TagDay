@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
@@ -40,7 +40,7 @@ fun TagsScreen(
         RenameTagDialog(
             tag = tag,
             onDismiss = { renamingTagId = null },
-            onRename = { t, newName -> viewModel.renameTag(t, newName) },
+            onRename = { t, newName, onResult -> viewModel.renameTag(t, newName, onResult) },
         )
     }
 

@@ -211,7 +211,12 @@ re-raised as though it had been missed.
   neither a screen reader nor a color-vision-impaired user. `alphaForCount`
   (`HeatmapDayCell.kt:20`) also saturates at 3+, making 3 and 30 identical.
 
-- [ ] **F15 — The instance sheet's back-press handling is accidental, not designed.**
+- [x] **F15 — The instance sheet's back-press handling is accidental, not designed.** *Fixed —
+  ADR-021 Amendment 1: the `confirmValueChange` veto is gone, the scrim is blocked by
+  `shouldDismissOnClickOutside = false`, drag by `sheetGesturesEnabled = false`, and back takes
+  the library's normal animated path. The IME-covering-the-add-value-row question is untested
+  and moves to the device checklist.*
+
   ⚠️ *Originally filed as "back does nothing" — **that was wrong**, written from ADR-021's
   stated intent rather than from the library now on the BOM. Corrected 2026-08-03 by reading
   material3 1.4.0's sources: back takes a different path from the scrim
@@ -247,40 +252,76 @@ re-raised as though it had been missed.
   add-value field are `singleLine` with no `imeAction`/`KeyboardActions`, so "+" must be tapped
   on every single entry — in an app whose entire loop is type-a-tag-and-add.
 
-- [ ] **F19 — Palette colors collide by construction.**
+- [x] **F19 — Palette colors collide by construction.** *Fixed — `TagPalette.nextColor` picks
+  the first unused colour and only cycles once the palette is exhausted. Pure function, five
+  unit tests including the deleted-from-the-middle case the old rule got wrong.*
+
+  Original finding:
   `TagPalette.colors[allTags.size % size]` (`CalendarViewModel.kt:175` and `:196`) — delete one
   tag and the next duplicates an existing color, with no check of what's in use. Week zoom,
   being dots-only (F13), is exactly where that's unreadable.
 
 ## Tier 5 — code quality & process
 
-- [ ] **F20 — No instrumented tests exist at all.** `app/src/androidTest` isn't present, though
+- [ ] **F20 — No instrumented tests exist at all.** ⚠️ *Premise was wrong, and the first tests
+  now exist. The environment **can** run an emulator (SDK + x86_64 images + KVM via ACL); only
+  an AVD was missing, and `cmdline-tools`/`avdmanager` is absent but an AVD is two config files.
+  `WeekContentTest` covers ADR-038's Week semantics — three tests, verified to fail without the
+  fix — and now runs on the JVM under Robolectric as part of `testDebugUnitTest` (ADR-040);
+  `app/src/androidTest/` has been removed. See ADR-039 for the emulator setup, kept as a local
+  tool. **Still open**: Room/DAO tests (no test at any layer executes SQL), coverage breadth
+  (drag-reorder, capsule hit targets, quick-entry, the sheet), and the 19 manual checks in
+  `UI_UX.md`.*
+
+  Original finding: `app/src/androidTest` isn't present, though
   the dependencies are configured in `app/build.gradle.kts`. `TESTING.md` documents this as a
   no-device gap, which is honest — but it means the drag-reorder (ADR-022), the swipe
   arbitration (ADR-012), the capsule hit-target trick (ADR-026/027) and the sheet are verified
   only by `UI_UX.md`'s manual checklist.
 
-- [ ] **F21 — Deprecated API**: `LocalConfiguration.current.screenHeightDp`
+- [x] **F21 — Deprecated API** *— fixed: `LocalWindowInfo.current.containerSize` via
+  `LocalDensity`. Lint warning gone.* Original finding:: `LocalConfiguration.current.screenHeightDp`
   (`InstanceListSheet.kt:106`) — lint's `ConfigurationScreenWidthHeight` wants
   `LocalWindowInfo.current.containerSize`. The deprecated value has target-SDK-dependent inset
   behaviour, which directly affects the sheet's 50% ceiling (ADR-028).
 
-- [ ] **F22 — `renameTag` is a `suspend fun` on the ViewModel** (`TagsViewModel.kt:63`) called
+- [x] **F22 — `renameTag` is a `suspend fun` on the ViewModel** *— fixed: it runs on
+  `viewModelScope` and reports through a callback, so dismissing or rotating can no longer
+  cancel the write. Tests updated to drive the callback.* Original finding: (`TagsViewModel.kt:63`) called
   from the dialog's `rememberCoroutineScope` (`RenameTagDialog.kt:64`), so the write is tied to
   the composition's lifetime and dismissing or rotating mid-rename can cancel it. Every other
   mutation goes through `viewModelScope`. It's also a check-then-write against a unique index,
   so the `@Update` can throw the same way F3 describes.
 
-- [ ] **F23 — Nothing enforces lint, and there's no landscape/tablet story.** `lintDebug`
+- [ ] **F23 — Nothing enforces lint, and there's no landscape/tablet story.** ⚠️ *Lint half
+  done: `warningsAsErrors = true` in `app/build.gradle.kts`, with the three "a newer version
+  exists" checks disabled since they fire on their own schedule without any code change.
+  Verified by reintroducing `Configuration.screenHeightDp` and confirming the build then fails,
+  rather than trusting the flag. Note the gate covers **Android Lint only** — Kotlin compiler
+  warnings (like F24's deprecated import) would need `allWarningsAsErrors`, which turns every
+  deprecation in a dependency bump into a build break and was deliberately not taken.
+  **Landscape/tablet is still open**, and still wants the portrait-lock decision first.*
+
+  Original finding: `lintDebug`
   passes with 5 warnings but no baseline and no gate. Separately: the sheet is 50% of screen
   height, the capsule `FlowRow` and the Year 4×3 grid are portrait-shaped, and nothing uses
   window size classes. R8 being off in release is deliberate and stays deferred to M6.
 
-- [ ] **F24 — `hiltViewModel()` is deprecated where it's used.** Both `CalendarScreen` and
+- [x] **F24 — `hiltViewModel()` is deprecated where it's used.** *Fixed — imports moved to
+  `androidx.hilt.lifecycle.viewmodel.compose`. Both build warnings gone.*
+ Both `CalendarScreen` and
   `TagsScreen` call `androidx.hilt.navigation.compose.hiltViewModel`, which has moved to
   `androidx.hilt.lifecycle.viewmodel.compose`. Compiler warning on every build, and the two
   call sites are the only ones. *(Noticed while working F5–F10, 2026-08-04 — not part of the
   original audit.)*
+
+- [ ] **F25 — Week zoom clips the last days on a short screen.** `WeekContent` is a
+  non-scrolling `Column` of seven day rows, so where the viewport is shorter than they need,
+  Saturday and Sunday are cut off with no way to scroll to them. Found by moving the Compose
+  tests to Robolectric, whose default screen is shorter than the emulator's — `assertIsDisplayed`
+  on the last rows went red (ADR-040). Almost certainly reachable on a small phone, and
+  guaranteed in landscape, which ties it to F23. *(Found 2026-08-07, not part of the original
+  audit.)*
 
 ---
 

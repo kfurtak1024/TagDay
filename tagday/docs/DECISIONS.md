@@ -1874,3 +1874,104 @@ accessibility one, and the content description now states the true count regardl
 **Not verified on a device, and this is the change where that matters most** — semantics
 merging and announcement order really need TalkBack to judge. See `UI_UX.md`'s manual-check
 list.
+
+---
+
+## ADR-039: Instrumented tests are possible here after all, and Week's semantics get the first one
+
+**Decision:** `app/src/androidTest/` exists, starting with `WeekContentTest`. This reverses
+`TESTING.md`'s standing claim that instrumented tests need "a connected device/emulator,
+unavailable in this project's usual working environment" — the same shape of reversal ADR-024
+made for ViewModel tests, and for the same reason: the stated obstacle turned out not to be
+real.
+
+**Why the claim was wrong:** the machine has the emulator package, x86_64 system images for API
+36/36.1, and a usable `/dev/kvm` (an ACL grants the user read/write, so the missing `kvm` group
+membership doesn't matter). Only an AVD was absent, and none had ever been created. What's
+genuinely missing is `cmdline-tools`, hence no `avdmanager` — but an AVD is two `.ini` files,
+so that's a detour rather than a blocker. `TESTING.md` § Instrumented tests records the setup.
+
+**Why Week first:** BACKLOG F13. `WeekContent` renders one coloured dot per tag and no text
+whatsoever, so before ADR-038 a screen reader got nothing from an entire zoom level. That fix
+lives *only* in the composed semantics tree — there is no pure function to unit-test, and
+`QuickEntryAction`-style extraction doesn't apply. It was the clearest example of a fix that
+could be reasoned about but not verified, which makes it the right thing to point the new
+capability at.
+
+**Alternatives considered:** (1) Keep relying on `@Preview` plus the manual check list.
+(2) Add Robolectric and run Compose tests on the JVM instead. (3) Install `cmdline-tools` and
+use `avdmanager` properly.
+
+**Why:** (1) is what the false premise forced, and the cost is visible in `UI_UX.md` — nineteen
+accumulated manual checks, none of them run. (2) is still wanted and is the next step: it gives
+a fast layer that runs on every build with no emulator, which suits semantics and state-driven
+behaviour. It doesn't replace this one, since it can't judge real rendering, gesture feel, or
+actual TalkBack. Running both was the explicit choice. (3) is the tidy answer and worth doing if
+AVDs are ever needed routinely; hand-writing one config file was cheaper than a 150MB download
+for a one-off.
+
+**A caution, learned the hard way:** a Compose semantics assertion passes for the wrong reasons
+very easily. `onNodeWithContentDescription` searches the **merged** tree, and `clickable` sets
+`mergeDescendants` by itself, so a row can appear labelled when nothing labelled it. Every UI
+test here should be shown to fail with its fix removed. The first attempt at exactly that check
+silently mutated nothing — the target line ended `},` not `}` — and three tests "passed"
+against untouched code, which is precisely the failure mode this note exists to prevent.
+
+**Verified:** all three tests fail with `WeekContent`'s `semantics(mergeDescendants = true)`
+removed, and pass with it restored.
+
+---
+
+## ADR-040: Compose tests run on the JVM under Robolectric; the emulator is a local tool, not a build step
+
+**Decision:** Supersedes ADR-039's placement, not its reasoning. The Compose tests move from
+`app/src/androidTest/` to `app/src/test/` and run under Robolectric as part of
+`testDebugUnitTest`. `app/src/androidTest/` is deleted. Instrumented testing stays *possible* —
+ADR-039's finding that this machine can run an emulator stands, and `TESTING.md` keeps the
+setup — but it's a local tool for manual checks, not something the build or CI depends on.
+
+**Why:** the three tests ADR-039 added run in ~3 seconds on the JVM with no emulator, no AVD
+and no `ANDROID_SERIAL` juggling, and they run on *every* build rather than when someone
+remembers a separate Gradle task. Nothing was lost in the move: they assert on the semantics
+tree, which Robolectric composes for real.
+
+The dependency question deserves a straight answer, since ADR-010 and ADR-011 both refused one.
+Those were **runtime** dependencies — `material-icons-extended` for a single glyph, a
+colour-picker library — where the cost is APK size shipped to users, with R8 disabled. Robolectric
+is `testImplementation`: it never reaches the APK. The costs are a one-time jar download and unit
+tests that go from microseconds to ~1s each. Different trade, different answer.
+
+Robolectric also unlocks something the emulator was going to be needed for anyway: it ships a
+real SQLite, so `Room.inMemoryDatabaseBuilder` works on the JVM. The DAO layer — the largest
+untested surface in the app, and the groundwork for migration testing (F1, F2) — becomes
+testable without a device at all.
+
+**Alternatives considered:** (1) Keep instrumented tests and add Gradle Managed Devices so CI
+can boot an emulator. (2) Keep instrumented tests, run them locally only, leave CI alone.
+(3) Robolectric, but keep `androidTest/` too for a handful of things. (4) Neither — go on
+extracting pure logic and accept that semantics are untestable.
+
+**Why:** (1) triples the CI runtime to run three tests, and needs a KVM setup step on the
+runner; worth revisiting if the DAO/migration suite grows into something worth gating on.
+(2) is what ADR-039 left in place, and its flaw is that a test nothing runs automatically is a
+test that rots. (3) is the honest long-term shape — real gesture arbitration (ADR-022) can't be
+trusted to a simulation — but there's nothing in `androidTest/` worth the second source set
+today, and it can come back the moment there is. (4) is where the project was, and the cost was
+ADR-038's whole accessibility pass shipping unverified.
+
+**What Robolectric does not cover**, and where the emulator or a device is still the authority:
+real rendering and contrast, gesture feel and timing, the drag-reorder arbitration ADR-022 took
+five attempts to get right on hardware, and actual TalkBack. `UI_UX.md`'s manual list stays.
+
+**A concrete instance of that limit, found immediately:** moving the tests turned one red.
+Robolectric's default screen is far shorter than the emulator's, and `WeekContent` is a
+*non-scrolling* `Column` of seven rows — so the last days were clipped with no way to reach
+them. The emulator's 2400px screen had hidden it. That's a real defect (BACKLOG F25), found by
+the environment change rather than by the assertion, and the tests now pin a realistic screen
+size (`@Config(qualifiers = "w411dp-h891dp")`) so they test semantics rather than whatever the
+runner defaults to.
+
+**Coverage measurement was attempted and abandoned:** Kover 0.9.1 registers no report tasks
+against AGP 9.3.1 — "No sources", and no per-variant tasks appear. It looks like a plain
+version incompatibility. Worth retrying when Kover supports AGP 9; until then coverage is
+judged structurally in `TESTING.md`.

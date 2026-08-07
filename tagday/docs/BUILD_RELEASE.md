@@ -24,6 +24,13 @@ the tag *is* the release record, no separate release branch needed.
   checksum validation.
 - `./gradlew testDebugUnitTest assembleDebug` — the same two commands used throughout
   local development to verify changes; nothing CI-specific.
+- `./gradlew lintDebug` — Android Lint, with `warningsAsErrors = true` in
+  `app/build.gradle.kts`, so a new warning fails the build rather than accumulating unread.
+  Three "a newer version of X exists" checks are disabled there (`OldTargetApi`,
+  `NewerVersionAvailable`, `AndroidGradlePluginVersion`): they fire on their own schedule with
+  no code change, so as errors they'd break a build nobody touched. The gate covers **Android
+  Lint only** — Kotlin compiler warnings are a separate stream and are not gated, so a
+  deprecated API still surfaces as a `w:` line rather than a failure.
 - Unit test HTML reports are uploaded as a workflow artifact if the run fails, for
   quick debugging from the Actions tab without re-running locally.
 

@@ -33,8 +33,8 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -53,8 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -96,31 +96,43 @@ fun InstanceListSheet(
     onReorderInstances: (List<TagInstance>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // skipPartiallyExpanded + confirmValueChange rejecting Hidden means the only
-    // reachable SheetValue is Expanded — dragging (or back/scrim) can never dismiss it,
-    // since hide() (whatever triggers it) can't complete. Closing only happens through
-    // the explicit close button below, which just calls onDismiss directly.
+    // Drag and scrim dismissal stay blocked (ADR-021 point 6); **back is deliberately
+    // allowed** (ADR-021 Amendment 1). A back press isn't the accidental dismissal that
+    // decision was protecting against, and blocking it on Android 14+ means a predictive-back
+    // peek followed by nothing, which reads as a broken screen.
     //
-    // confirmValueChange alone only vetoes the final *settle* target — the sheet's own
-    // `.draggable()` still followed the finger down (and snapped back on release), so
-    // the panel was still visibly slidable. `sheetGesturesEnabled = false` disables that
-    // `.draggable()` modifier outright (see ModalBottomSheet.kt's ModalBottomSheetContent
-    // — it also skips the swipe-dismiss nested scroll connection entirely when false), so
-    // there's no drag motion on the sheet surface to begin with.
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { it != SheetValue.Hidden },
-    )
+    // Each path is now blocked by the mechanism actually meant for it:
+    //  - scrim: `shouldDismissOnClickOutside = false`, which gates the `Scrim`'s own
+    //    clickability. This used to be done with a `confirmValueChange` veto on `Hidden` —
+    //    the only tool available when ADR-021 was written, and one that no longer expresses
+    //    the intent, since material3 gained this property.
+    //  - drag: `sheetGesturesEnabled = false`, which disables the sheet's `.draggable()`
+    //    outright; `confirmValueChange` alone only vetoed the final settle, leaving the panel
+    //    visibly following the finger before snapping back.
+    //  - back: left to the library, which routes it through `sheetState.hide()` and so
+    //    animates out properly instead of vanishing.
+    //
+    // Dropping the veto is what makes back *designed* rather than incidental: it worked before
+    // only because material3's back path calls `onDismissRequest` from an `invokeOnCompletion`
+    // that, unlike the scrim's, carries no `isVisible` guard — an inconsistency that could be
+    // tightened in any release. See BACKLOG F15.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     // Both panels size to their content and use half the screen only as a ceiling, so a
     // one-row group opens a short sheet and a long one stops growing and scrolls instead
     // (ADR-028, superseding ADR-021's fixed height and generalising ADR-025).
-    val panelHeight = LocalConfiguration.current.screenHeightDp.dp * 0.5f
+    // `LocalWindowInfo.containerSize`, not `LocalConfiguration.screenHeightDp`: the latter is
+    // deprecated, rounds to whole dp, and applies insets differently depending on target SDK —
+    // all of which matter when the value *is* a layout ceiling (BACKLOG F21).
+    val panelHeight = with(LocalDensity.current) {
+        LocalWindowInfo.current.containerSize.height.toDp() * 0.5f
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         sheetGesturesEnabled = false,
         dragHandle = null,
+        properties = ModalBottomSheetProperties(shouldDismissOnClickOutside = false),
         modifier = modifier,
     ) {
         Column(

@@ -259,7 +259,7 @@ class CalendarViewModel @Inject constructor(
         values: List<String> = emptyList(),
     ) {
         viewModelScope.launch {
-            val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
+            val color = TagPalette.nextColor(uiState.value.allTags.map { it.color })
             // Null only if the name both failed to insert and then failed to be found, which
             // means it was deleted in between — nothing sensible to add to, so drop the input
             // rather than inventing a tag (BACKLOG F3).
@@ -283,7 +283,7 @@ class CalendarViewModel @Inject constructor(
      */
     fun createTagForEditing(name: String, type: TagType) {
         viewModelScope.launch {
-            val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
+            val color = TagPalette.nextColor(uiState.value.allTags.map { it.color })
             val tagId = tagRepository.createTag(name, color, type) ?: return@launch
             _pendingTagEdit.value = tagId
         }

@@ -36,13 +36,24 @@ class TagsViewModelTest {
         assertEquals(listOf(movie.name), viewModel.uiState.value.tags.map { it.name })
     }
 
+    /**
+     * `renameTag` reports through a callback now rather than returning, so the write can live
+     * on `viewModelScope` instead of the dialog's composition scope (BACKLOG F22). Null means
+     * it never reported at all, which is itself a failure worth catching.
+     */
+    private fun TagsViewModel.renameResultOf(tag: Tag, newName: String): Boolean? {
+        var result: Boolean? = null
+        renameTag(tag, newName) { result = it }
+        return result
+    }
+
     @Test
     fun renameTag_uniqueName_renamesAndReportsSuccess() = runTest {
         val (viewModel, repository) = viewModelWith()
 
-        val renamed = viewModel.renameTag(walk, "hiking")
+        val renamed = viewModel.renameResultOf(walk, "hiking")
 
-        assertTrue(renamed)
+        assertTrue(renamed!!)
         assertEquals("hiking", repository.tags.value.single { it.id == walk.id }.name)
     }
 
@@ -50,7 +61,7 @@ class TagsViewModelTest {
     fun renameTag_trimsWhitespaceBeforeSaving() = runTest {
         val (viewModel, repository) = viewModelWith()
 
-        viewModel.renameTag(walk, "  hiking  ")
+        viewModel.renameResultOf(walk, "  hiking  ")
 
         assertEquals("hiking", repository.tags.value.single { it.id == walk.id }.name)
     }
@@ -61,9 +72,9 @@ class TagsViewModelTest {
 
         // Case-insensitively equal to `movie` — tags.name is a NOCASE unique index, so this
         // has to be rejected here rather than reaching the DAO and throwing.
-        val renamed = viewModel.renameTag(walk, "MOVIE")
+        val renamed = viewModel.renameResultOf(walk, "MOVIE")
 
-        assertFalse(renamed)
+        assertFalse(renamed!!)
         assertEquals("walk", repository.tags.value.single { it.id == walk.id }.name)
     }
 
@@ -71,9 +82,9 @@ class TagsViewModelTest {
     fun renameTag_recasingItsOwnName_isAllowed() = runTest {
         val (viewModel, repository) = viewModelWith()
 
-        val renamed = viewModel.renameTag(walk, "Walk")
+        val renamed = viewModel.renameResultOf(walk, "Walk")
 
-        assertTrue(renamed)
+        assertTrue(renamed!!)
         assertEquals("Walk", repository.tags.value.single { it.id == walk.id }.name)
     }
 

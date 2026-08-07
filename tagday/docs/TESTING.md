@@ -93,15 +93,12 @@ fun step_month_acrossYearBoundary()
 
 ## What's deliberately not tested, and why
 
-- **Composables**: no Compose UI testing infrastructure is exercised. The
-  `androidx.compose.ui.test.junit4`/`debugImplementation(...ui.test.manifest)`
-  dependencies are kept for whenever that changes, but `app/src/androidTest/` is empty —
-  instrumented tests need a connected device/emulator, unavailable in this project's
-  usual working environment. `@Preview` composables (one "populated" + one "empty" per
-  screen, following `CONVENTIONS.md`) are the practical stand-in for visual verification.
-  This is the largest remaining coverage gap, and it's an environment limit rather than a
-  judgment about value: the `Screen`/`Content` split (ADR-005) exists precisely so the
-  content composables *could* be driven by a UI test.
+- **Most composables**, still — but this is no longer an environment limit, and the claim
+  that used to sit here ("instrumented tests need a connected device/emulator, unavailable in
+  this project's usual working environment") was **wrong**, see § Instrumented tests below.
+  `@Preview` composables (one "populated" + one "empty" per screen, following
+  `CONVENTIONS.md`) remain the stand-in for anything not yet covered. The `Screen`/`Content`
+  split (ADR-005) exists precisely so the content composables can be driven by a UI test.
 - **Composable-internal state logic**, most notably `ValuedInstanceList`'s drag-reorder
   bookkeeping (swap thresholds, local-vs-persisted order, edge auto-scroll — ADR-022).
   It's real logic with real edge cases, but it's expressed in `remember`ed state inside a
@@ -114,6 +111,51 @@ fun step_month_acrossYearBoundary()
   a unit test — see ADR-011.
 - **Gesture code** (`CalendarContent`'s drag detection): same reasoning as Composables —
   feel/timing/threshold correctness can only really be judged on a device.
+
+## Compose tests (Robolectric, on the JVM)
+
+Compose tests live in `app/src/test/` and run under Robolectric as part of
+`testDebugUnitTest` — no device, no emulator, no separate Gradle task (ADR-040). Two bits of
+setup make it work: `testOptions.unitTests.isIncludeAndroidResources = true`, without which a
+Compose test fails at startup rather than at its assertion, and `@RunWith(RobolectricTestRunner::class)`
+on the class.
+
+```kotlin
+@RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "w411dp-h891dp")   // pin a realistic phone; see below
+class WeekContentTest {
+    @get:Rule val compose = createComposeRule()   // the v2 factory
+}
+```
+
+**Pin the screen size.** Robolectric's default screen is much shorter than a real phone, and
+layout-sensitive assertions silently change meaning with it — moving these tests off the
+emulator turned one red because `WeekContent`'s seven non-scrolling rows no longer fit
+(BACKLOG F25, a genuine defect the emulator's tall screen had hidden).
+
+**Prefer `assertExists` over `assertIsDisplayed`** when the question is "is this labelled
+correctly", and keep `assertIsDisplayed` for when visibility is genuinely the thing under test.
+Conflating them is what makes a semantics test quietly depend on screen height.
+
+**Verify every UI test can fail.** A semantics assertion passes for the wrong reasons very
+easily: `onNodeWithContentDescription` searches the *merged* tree, and `clickable` merges
+descendants by itself, so a row can look labelled when nothing labelled it. Delete the modifier
+under test and confirm the test goes red before trusting it. (Doing this the first time, the
+mutation silently didn't apply — the target line ended in `},` not `}` — and three tests
+"passed" against unchanged code.)
+
+**What still needs a real device**, and stays in `UI_UX.md`'s manual list: rendering and
+contrast, gesture feel and timing, the drag-reorder arbitration (ADR-022), and actual TalkBack.
+`app/src/androidTest/` no longer exists; ADR-039 records how to run an emulator here if it's
+ever wanted again, and the `androidTestImplementation` dependencies are kept for that.
+
+## Coverage
+
+No automated measurement: Kover 0.9.1 produces an empty report against AGP 9.3.1 and registers
+no variant tasks, which looks like a straight incompatibility. Worth retrying when Kover
+supports AGP 9. Until then, coverage is judged structurally — see § What gets a unit test above
+and `BACKLOG.md` F20 for the known gaps, the largest being that **no test at any layer executes
+SQL**.
 
 ## Running them
 

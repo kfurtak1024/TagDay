@@ -7,24 +7,21 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.model.TagName
-import kotlinx.coroutines.launch
 
 @Composable
 fun RenameTagDialog(
     tag: Tag,
     onDismiss: () -> Unit,
-    onRename: suspend (tag: Tag, newName: String) -> Boolean,
+    onRename: (tag: Tag, newName: String, onResult: (Boolean) -> Unit) -> Unit,
 ) {
     var name by rememberSaveable(tag.id) { mutableStateOf(tag.name) }
     var showDuplicateError by rememberSaveable(tag.id) { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     // Sanitizing every keystroke means the only ways to be invalid here are "empty" and
     // "ends with a separator" — plus a pre-existing name that predates these rules, which is
     // shown as-is and only normalized once the user actually edits it. It also subsumes the
@@ -60,9 +57,11 @@ fun RenameTagDialog(
         confirmButton = {
             TextButton(
                 enabled = isValid,
+                // The write itself runs on the ViewModel's scope, so dismissing here can't
+                // cancel it half-done (BACKLOG F22).
                 onClick = {
-                    scope.launch {
-                        if (onRename(tag, name)) onDismiss() else showDuplicateError = true
+                    onRename(tag, name) { renamed ->
+                        if (renamed) onDismiss() else showDuplicateError = true
                     }
                 },
             ) {
