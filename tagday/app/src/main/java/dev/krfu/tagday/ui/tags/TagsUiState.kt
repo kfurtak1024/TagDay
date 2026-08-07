@@ -8,5 +8,6 @@ data class TagsUiState(
     val tags: List<Tag> = emptyList(),
     val pendingDelete: PendingDelete? = null,
 ) {
-    data class PendingDelete(val tag: Tag, val instanceCount: Int)
+    /** [taggedDayCount] is distinct days, not instances — the dialog says "days" (BACKLOG F9). */
+    data class PendingDelete(val tag: Tag, val taggedDayCount: Int)
 }

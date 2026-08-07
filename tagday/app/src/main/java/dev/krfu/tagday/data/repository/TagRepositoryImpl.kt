@@ -36,7 +36,7 @@ class TagRepositoryImpl @Inject constructor(
         tagDao.update(tag.copy(color = color))
     }
 
-    override suspend fun instanceCount(tagId: Long): Int = tagDao.instanceCount(tagId)
+    override suspend fun taggedDayCount(tagId: Long): Int = tagDao.taggedDayCount(tagId)
 
     override suspend fun deleteTag(tag: Tag) {
         tagDao.delete(tag)

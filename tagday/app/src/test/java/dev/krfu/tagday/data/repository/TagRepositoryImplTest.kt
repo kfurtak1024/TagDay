@@ -30,7 +30,7 @@ class TagRepositoryImplTest {
             lastUpdated = tag
         }
         override suspend fun delete(tag: Tag) = throw NotImplementedError()
-        override suspend fun instanceCount(tagId: Long): Int = throw NotImplementedError()
+        override suspend fun taggedDayCount(tagId: Long): Int = throw NotImplementedError()
     }
 
     private fun tag() = Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF000000.toInt(), createdAt = 1_000L)

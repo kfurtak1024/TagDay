@@ -45,7 +45,11 @@ interface TagDao {
     @Delete
     suspend fun delete(tag: Tag)
 
-    // For the deletion confirmation dialog.
-    @Query("SELECT COUNT(*) FROM tag_instances WHERE tagId = :tagId")
-    suspend fun instanceCount(tagId: Long): Int
+    /**
+     * How many *days* carry this tag, which is what the deletion dialog says it's counting.
+     * It was `COUNT(*)` — the number of instances — so a tag applied twice in one day
+     * overstated the days it would disappear from (BACKLOG F9).
+     */
+    @Query("SELECT COUNT(DISTINCT date) FROM tag_instances WHERE tagId = :tagId")
+    suspend fun taggedDayCount(tagId: Long): Int
 }

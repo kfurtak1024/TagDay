@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.map
  */
 class FakeTagRepository(initialTags: List<Tag> = emptyList()) : TagRepository {
     val tags = MutableStateFlow(initialTags)
-    var instanceCountResult: Int = 0
+    var taggedDayCountResult: Int = 0
     val deletedTags = mutableListOf<Tag>()
 
     override fun observeAll(): Flow<List<Tag>> = tags
@@ -43,7 +43,7 @@ class FakeTagRepository(initialTags: List<Tag> = emptyList()) : TagRepository {
         tags.value = tags.value.map { if (it.id == tag.id) it.copy(color = color) else it }
     }
 
-    override suspend fun instanceCount(tagId: Long): Int = instanceCountResult
+    override suspend fun taggedDayCount(tagId: Long): Int = taggedDayCountResult
 
     override suspend fun deleteTag(tag: Tag) {
         deletedTags += tag

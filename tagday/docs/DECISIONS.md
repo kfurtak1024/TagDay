@@ -1817,3 +1817,60 @@ genuine failure (disk full, corrupted database) still crashes. That needs a UX d
 what the user should see, which is why it isn't bundled here.
 
 **Not verified on a device** — see `UI_UX.md`'s manual-check list.
+
+---
+
+## ADR-038: Week and the heatmaps get semantics; counts become plurals
+
+**Decision:** An accessibility pass over the parts of the calendar that communicated purely by
+colour. Fixes BACKLOG F13, F14, F16 and F9.
+
+1. **A Week row announces itself.** `WeekDayRow` merges its descendants and carries one
+   description — "Monday 20 July: walk, reading", or "…: nothing tagged". Its coloured dots had
+   no semantics whatsoever, so the entire Week zoom level was silent to a screen reader, and
+   the dots are unlabelled by eye too once two tags land on similar colours (which ADR-009's
+   `size % palette` assignment makes likely — BACKLOG F19).
+2. **A heatmap cell announces its date and count.** `HeatmapDayCell` now takes the `LocalDate`
+   it represents and describes itself as "Wednesday 15 July, 3 times". The count previously
+   existed *only* as background alpha, reaching neither a screen reader nor anyone who can't
+   separate the shades. Year's month tiles get the same treatment with the month total, since
+   ADR-016 already established that their per-day squares are too small to be individual
+   targets.
+3. **Star ratings say what the rating is.** The `StarInput` row carries "Rated 3 stars" (or
+   "Not rated"); each star says what tapping it *does* — "Rate 4 stars". Every star was
+   previously labelled with its own index, so TalkBack read "1 stars, 2 stars, 3 stars, 4
+   stars, 5 stars" and never stated the current value.
+4. **Counted strings become `<plurals>`.** The rating labels and the delete dialog's message,
+   both of which lint had flagged. And the delete dialog now counts the right thing:
+   `TagDao.instanceCount` was `COUNT(*)` over instances while the message said "tagged day(s)",
+   so a tag applied twice in one day overstated its reach. It's `COUNT(DISTINCT date)`, renamed
+   `taggedDayCount` through the repository, ViewModel and UI state so the name can't drift from
+   the meaning again.
+
+**Why:** points 1 and 2 are the same defect — a view whose entire content is colour. That's
+invisible to a screen reader by construction, and it's the textbook case for not encoding
+information in colour alone. It matters more here than the usual argument suggests, because
+Week and Month/Year are the *overview* levels: they're where you look to see a pattern, and
+without them the app is Day-zoom-only for anyone using TalkBack.
+
+Point 4's counting bug is small but it's the kind that erodes trust in a confirmation dialog —
+the one place the app asks "are you sure?" should not overstate what's about to happen.
+
+**Alternatives considered:** (1a) Label each Week dot individually rather than merging the row.
+(2a) Draw the count as text in each heatmap cell. (3a) Leave the star labels and let the sheet's
+title carry the rating.
+
+**Why:** (1a) means seven-plus focus stops per row and a screen reader user swiping through
+dozens of unlabelled nodes to assemble one day; merging is what makes the row a single useful
+utterance. (2a) is a genuine option and would help sighted users too, but a Month cell is
+already tight at this density and Year's are a few pixels — the whole reason ADR-016 dropped
+day numbers from Year. (3a) doesn't work: the row is the control being operated, so it's the
+thing that has to report its state.
+
+**Still open:** `alphaForCount` saturates at 3+, so 3 and 30 render identically (BACKLOG F14's
+second half). That's a visual-design question about bucket boundaries rather than an
+accessibility one, and the content description now states the true count regardless.
+
+**Not verified on a device, and this is the change where that matters most** — semantics
+merging and announcement order really need TalkBack to judge. See `UI_UX.md`'s manual-check
+list.

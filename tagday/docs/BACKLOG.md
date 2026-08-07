@@ -150,7 +150,11 @@ re-raised as though it had been missed.
   way out. The `ValueField` half is deliberate (it's in `UI_UX.md`'s check list); the *absence
   of any other way to clear* is the gap.
 
-- [ ] **F9 — The delete-tag dialog counts instances but says days.** `TagDao.kt:38` is
+- [x] **F9 — The delete-tag dialog counts instances but says days.** *Fixed — ADR-038 point 4:
+  `COUNT(DISTINCT date)`, renamed `taggedDayCount` end to end, and the message is a `<plurals>`.
+  The SQL itself isn't unit-testable here (no Room on the JVM classpath) — device check only.*
+
+  Original finding: `TagDao.kt:38` is
   `COUNT(*) FROM tag_instances`, while `strings.xml:35` reads "removes it from %1$d tagged
   day(s)". Tag something twice in one day and the number overstates. Wants
   `COUNT(DISTINCT date)` — and a `<plurals>` while it's being touched (see F16).
@@ -189,12 +193,20 @@ re-raised as though it had been missed.
   a tag above to see its heatmap" — on every launch, and again after process death. Worth
   deciding whether it defaults to the first tag, the last used, or stays deliberately empty.
 
-- [ ] **F13 — Week zoom is unlabelled colored dots.** `WeekContent.kt:104` renders a `Box` per
+- [x] **F13 — Week zoom is unlabelled colored dots.** *Fixed — ADR-038 point 1: the row merges
+  its descendants and announces the date plus each group's summary.*
+
+  Original finding: `WeekContent.kt:104` renders a `Box` per
   group with no name, no count and **no `contentDescription`**, so the whole zoom level is
   invisible to TalkBack and ambiguous by eye once two tags have similar colors (which F19 makes
   likely). Nothing caps the dot count for a heavily tagged day either.
 
-- [ ] **F14 — Heatmap cells convey their value by alpha alone.** `HeatmapDayCell.kt` exposes
+- [ ] **F14 — Heatmap cells convey their value by alpha alone.** ⚠️ *Half fixed — ADR-038
+  point 2: Month cells and Year tiles now announce their date and count. **Still open**:
+  `alphaForCount` saturates at 3+, so 3 and 30 look identical. Left as a visual-design
+  question about bucket boundaries.*
+
+  Original finding: `HeatmapDayCell.kt` exposes
   only the day number, with no content description carrying the count, so the data reaches
   neither a screen reader nor a color-vision-impaired user. `alphaForCount`
   (`HeatmapDayCell.kt:20`) also saturates at 3+, making 3 and 30 identical.
@@ -214,7 +226,10 @@ re-raised as though it had been missed.
   animation. Also still open and untested: no `imePadding()` on the sheet content, so the
   keyboard may cover the add-value row.
 
-- [ ] **F16 — Star content descriptions announce the wrong thing.** Every star reads
+- [x] **F16 — Star content descriptions announce the wrong thing.** *Fixed — ADR-038 point 3:
+  the row states the current rating, each star states its action, both via `<plurals>`.*
+
+  Original finding: Every star reads
   "%1$d stars" — its own index (`StarInput.kt:36`) — so TalkBack enumerates "1 stars … 5 stars"
   and never states the current rating. Lint flags this and `tags_delete_dialog_message` as
   `<plurals>` candidates ("1 stars").

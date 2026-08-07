@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -121,6 +122,20 @@ private fun YearMonthTile(
         cells
     }
     val shape = RoundedCornerShape(4.dp)
+    val monthTotal = weeks.sumOf { week ->
+        week.sumOf { day -> if (day == null) 0 else countsByDate[day.toEpochDay().toInt()] ?: 0 }
+    }
+    val monthLabel = monthDate.format(monthNameFormatter)
+    val tileContentDescription = if (monthTotal > 0) {
+        pluralStringResource(
+            R.plurals.calendar_heatmap_cell_content_description,
+            monthTotal,
+            monthTotal,
+            monthLabel,
+        )
+    } else {
+        stringResource(R.string.calendar_heatmap_cell_empty_content_description, monthLabel)
+    }
 
     Column(
         modifier = modifier
@@ -129,7 +144,10 @@ private fun YearMonthTile(
             // so the today-indicator lives on the whole tile instead — see ADR-017.
             .let { m -> if (isCurrentMonth) m.border(1.5.dp, MaterialTheme.colorScheme.primary, shape) else m }
             .clickable(onClick = onClick)
-            .semantics { contentDescription = monthDate.format(monthNameFormatter) }
+            // Same gap as the Month heatmap's cells (BACKLOG F14): the tile's per-day squares
+            // are shading only, and at this density they have no individual semantics at all
+            // (ADR-016), so the month total is the finest thing worth announcing here.
+            .semantics { contentDescription = tileContentDescription }
             .padding(4.dp),
     ) {
         Text(

@@ -37,7 +37,7 @@ class TagsViewModel @Inject constructor(
 
     fun requestDelete(tag: Tag) {
         viewModelScope.launch {
-            val count = tagRepository.instanceCount(tag.id)
+            val count = tagRepository.taggedDayCount(tag.id)
             pendingDelete.value = TagsUiState.PendingDelete(tag, count)
         }
     }

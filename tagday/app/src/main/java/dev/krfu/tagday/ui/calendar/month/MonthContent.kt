@@ -99,6 +99,7 @@ internal fun MonthGrid(
                     } else {
                         HeatmapDayCell(
                             dayOfMonth = day.dayOfMonth,
+                            date = day,
                             count = countsByDate[day.toEpochDay().toInt()] ?: 0,
                             tagColor = tagColor,
                             isToday = day == today,

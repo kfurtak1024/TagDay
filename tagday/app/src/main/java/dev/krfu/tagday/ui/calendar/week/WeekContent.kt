@@ -20,8 +20,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
 import dev.krfu.tagday.ui.calendar.CalendarDateRanges
@@ -30,6 +34,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val weekdayFormatter = DateTimeFormatter.ofPattern("EEE")
+private val rowContentDescriptionFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM")
 
 @Composable
 fun WeekContent(
@@ -68,11 +73,28 @@ private fun WeekDayRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The dots carry colour and nothing else — no names, no counts, and until now no
+    // semantics at all, which made this whole zoom level invisible to a screen reader and
+    // ambiguous by eye once two tags had similar colours (BACKLOG F13). Merging the row's
+    // descendants into one node means it reads as "Monday 20 July: walk, reading" rather than
+    // as a date followed by silence.
+    val dateLabel = date.format(rowContentDescriptionFormatter)
+    val rowContentDescription = if (groups.isEmpty()) {
+        stringResource(R.string.calendar_week_day_empty_content_description, dateLabel)
+    } else {
+        stringResource(
+            R.string.calendar_week_day_content_description,
+            dateLabel,
+            groups.joinToString(", ") { it.summary },
+        )
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .semantics(mergeDescendants = true) { contentDescription = rowContentDescription },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.width(56.dp)) {

@@ -32,7 +32,10 @@
     <string name="tags_color_dialog_cancel">Cancel</string>
 
     <string name="tags_delete_dialog_title">Delete \"%1$s\"?</string>
-    <string name="tags_delete_dialog_message">This removes it from %1$d tagged day(s). This can\'t be undone.</string>
+    <plurals name="tags_delete_dialog_message">
+        <item quantity="one">This removes it from %1$d tagged day. This can\'t be undone.</item>
+        <item quantity="other">This removes it from %1$d tagged days. This can\'t be undone.</item>
+    </plurals>
     <string name="tags_delete_dialog_confirm">Delete</string>
     <string name="tags_delete_dialog_cancel">Cancel</string>
 
@@ -50,6 +53,13 @@
     <string name="calendar_tag_picker_label">Tag</string>
     <string name="calendar_tag_picker_placeholder">Pick a tag</string>
     <string name="calendar_heatmap_pick_tag_message">Pick a tag above to see its heatmap</string>
+    <plurals name="calendar_heatmap_cell_content_description">
+        <item quantity="one">%2$s, %1$d time</item>
+        <item quantity="other">%2$s, %1$d times</item>
+    </plurals>
+    <string name="calendar_heatmap_cell_empty_content_description">%1$s, none</string>
+    <string name="calendar_week_day_content_description">%1$s: %2$s</string>
+    <string name="calendar_week_day_empty_content_description">%1$s: nothing tagged</string>
 
     <string name="day_quick_entry_placeholder">Add a tag…</string>
     <string name="day_quick_entry_submit_content_description">Add tag</string>
@@ -65,7 +75,15 @@
     <string name="day_instances_sheet_move_down_content_description">Move down</string>
     <string name="day_instances_sheet_close_content_description">Close</string>
     <string name="day_capsule_remove_content_description">Remove %1$s</string>
-    <string name="day_rating_star_content_description">%1$d stars</string>
+    <plurals name="day_rating_star_content_description">
+        <item quantity="one">Rate %1$d star</item>
+        <item quantity="other">Rate %1$d stars</item>
+    </plurals>
+    <plurals name="day_rating_current_content_description">
+        <item quantity="one">Rated %1$d star</item>
+        <item quantity="other">Rated %1$d stars</item>
+    </plurals>
+    <string name="day_rating_unrated_content_description">Not rated</string>
 
     <string name="day_undo_snackbar_message">\"%1$s\" removed</string>
     <string name="day_undo_snackbar_action">Undo</string>

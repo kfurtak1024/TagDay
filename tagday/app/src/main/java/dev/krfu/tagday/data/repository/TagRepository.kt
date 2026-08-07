@@ -22,7 +22,8 @@ interface TagRepository {
 
     suspend fun updateColor(tag: Tag, color: Int)
 
-    suspend fun instanceCount(tagId: Long): Int
+    /** Number of distinct days this tag appears on — see `TagDao.taggedDayCount`. */
+    suspend fun taggedDayCount(tagId: Long): Int
 
     suspend fun deleteTag(tag: Tag)
 }

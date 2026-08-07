@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -187,7 +188,15 @@ private fun DeleteTagConfirmationDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.tags_delete_dialog_title, pending.tag.name)) },
-        text = { Text(stringResource(R.string.tags_delete_dialog_message, pending.instanceCount)) },
+        text = {
+            Text(
+                pluralStringResource(
+                    R.plurals.tags_delete_dialog_message,
+                    pending.taggedDayCount,
+                    pending.taggedDayCount,
+                ),
+            )
+        },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.tags_delete_dialog_confirm))

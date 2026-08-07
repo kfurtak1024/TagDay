@@ -80,13 +80,13 @@ class TagsViewModelTest {
     @Test
     fun requestDelete_exposesTheInstanceCountForTheConfirmationDialog() = runTest {
         val (viewModel, repository) = viewModelWith()
-        repository.instanceCountResult = 7
+        repository.taggedDayCountResult = 7
         keepSubscribed(viewModel.uiState)
 
         viewModel.requestDelete(walk)
 
         assertEquals(walk, viewModel.uiState.value.pendingDelete?.tag)
-        assertEquals(7, viewModel.uiState.value.pendingDelete?.instanceCount)
+        assertEquals(7, viewModel.uiState.value.pendingDelete?.taggedDayCount)
         assertTrue(repository.deletedTags.isEmpty())
     }
 

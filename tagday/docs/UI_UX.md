@@ -472,6 +472,14 @@ not scoped by this doc; don't design ahead of it.
   - **Rated creation (ADR-031)**: pick Rated for a new name, press `+`, and confirm the sheet
     opens on an empty Rated panel rather than the day showing an unrated bare name; then check
     `mood:***` still creates it rated in one step without opening the sheet.
+  - **TalkBack pass (ADR-038)** — the one change here that can only be judged on a device:
+    turn TalkBack on and swipe through Week, confirming each row reads as one utterance
+    ("Monday 20 July: walk, reading") rather than a date followed by silent dots. Do the same
+    across a Month heatmap (date + count per cell) and a Year grid (month + total). Open a
+    Rated instance sheet and confirm the star row announces "Rated 3 stars", and that focusing
+    an individual star says "Rate 4 stars" — not the old "1 stars, 2 stars…". Check the delete
+    dialog reads "1 tagged day" rather than "1 tagged days", with a tag used twice in one day
+    to confirm the count is days and not instances.
   - **Existing-tag quick entry (ADR-034)**: with an existing Valued `film`, type `film:dune`
     and confirm the value lands on the day (it used to vanish); type bare `film` and confirm
     the sheet opens rather than the capsule reading `film: []`. Same two for a Rated tag with
