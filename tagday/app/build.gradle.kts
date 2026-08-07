@@ -107,6 +107,7 @@ dependencies {
     // Compose UI tests run on the JVM under Robolectric rather than on a device — see ADR-040
     // and TESTING.md. Both of these are test-only and never reach the APK.
     testImplementation(libs.robolectric)
+    testImplementation(libs.turbine)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(platform(libs.androidx.compose.bom))

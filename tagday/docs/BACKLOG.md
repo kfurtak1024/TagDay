@@ -271,9 +271,9 @@ re-raised as though it had been missed.
   `app/src/androidTest/` has been removed. See ADR-039 for the emulator setup, kept as a local
   tool. Room/DAO tests now exist too — `TagDaoTest`/`TagInstanceDaoTest`, 16 tests over real
   in-memory SQLite, each verified against a deliberate SQL mutation. Compose coverage now also spans `DayContentTest` and
-  `TagQuickEntryBarTest` (ADR-034's routing end to end). **Still open**: the instance sheet (a
-  `ModalBottomSheet`, not yet attempted under Robolectric), Turbine to replace the hand-rolled
-  `collectInto`, and the 19 manual checks in `UI_UX.md`. Note ADR-026/027's capsule touch-target
+  `TagQuickEntryBarTest` (ADR-034's routing end to end). `InstanceListSheetTest` covers the three per-type
+  panels (`ModalBottomSheet` works fine under Robolectric), and Turbine has replaced the
+  hand-rolled `collectInto`. **Still open**: the 19 manual checks in `UI_UX.md`. Note ADR-026/027's capsule touch-target
   geometry is **not** JVM-testable — Robolectric has no font metrics, so text measures ~5px wide
   — and stays a device check.*
 

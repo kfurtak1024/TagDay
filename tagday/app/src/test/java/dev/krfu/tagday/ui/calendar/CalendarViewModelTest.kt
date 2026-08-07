@@ -1,9 +1,10 @@
 package dev.krfu.tagday.ui.calendar
 
 import androidx.lifecycle.SavedStateHandle
+import app.cash.turbine.Event
+import app.cash.turbine.test
 import dev.krfu.tagday.MainDispatcherRule
 import dev.krfu.tagday.MutableClock
-import dev.krfu.tagday.collectInto
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
@@ -106,38 +107,41 @@ class CalendarViewModelTest {
     @Test
     fun everyEmission_pairsTheDataWithItsOwnQuery() = runTest {
         val (viewModel, _, _) = viewModelWith(instances = listOf(instance(id = 1, tagId = walk.id)))
-        val emissions = mutableListOf<CalendarUiState>()
-        collectInto(viewModel.uiState, emissions)
 
-        viewModel.stepTime(1)
-        viewModel.setZoom(ZoomLevel.WEEK)
-        viewModel.setZoom(ZoomLevel.DAY)
-        viewModel.stepTime(-1)
+        viewModel.uiState.test {
+            viewModel.stepTime(1)
+            viewModel.setZoom(ZoomLevel.WEEK)
+            viewModel.setZoom(ZoomLevel.DAY)
+            viewModel.stepTime(-1)
 
-        assertTrue("expected several emissions, got ${emissions.size}", emissions.size > 1)
-        emissions.forEach { state ->
-            // Day data may only appear at Day zoom, Week data at Week zoom, and so on. The
-            // initial state is the one exemption: it's `stateIn`'s placeholder, not a query
-            // result, and it carries an empty Day payload before anything has been collected.
-            if (state.isLoading) return@forEach
-            val expected = when (state.zoomLevel) {
-                ZoomLevel.DAY -> CalendarPeriodData.Day::class
-                ZoomLevel.WEEK -> CalendarPeriodData.Week::class
-                ZoomLevel.MONTH, ZoomLevel.YEAR -> CalendarPeriodData.Heatmap::class
+            val states = cancelAndConsumeRemainingEvents()
+                .filterIsInstance<Event.Item<CalendarUiState>>()
+                .map { it.value }
+
+            assertTrue("expected several emissions, got ${states.size}", states.size > 1)
+            states.forEach { state ->
+                // Day data may only appear at Day zoom, Week data at Week zoom, and so on. The
+                // initial state is the one exemption: it's `stateIn`'s placeholder, not a query
+                // result, and carries an empty Day payload before anything has been collected.
+                if (state.isLoading) return@forEach
+                val expected = when (state.zoomLevel) {
+                    ZoomLevel.DAY -> CalendarPeriodData.Day::class
+                    ZoomLevel.WEEK -> CalendarPeriodData.Week::class
+                    ZoomLevel.MONTH, ZoomLevel.YEAR -> CalendarPeriodData.Heatmap::class
+                }
+                assertEquals(
+                    "zoom ${state.zoomLevel} carried ${state.periodData::class.simpleName}",
+                    expected,
+                    state.periodData::class,
+                )
+                // And the Day payload must be the *focused* day's, not a neighbour's.
+                val groups = (state.periodData as? CalendarPeriodData.Day)?.groups ?: return@forEach
+                assertEquals(
+                    "groups for ${state.focusedDate} (today is $today)",
+                    if (state.focusedDate == today) 1 else 0,
+                    groups.size,
+                )
             }
-            assertEquals(
-                "zoom ${state.zoomLevel} carried ${state.periodData::class.simpleName}",
-                expected,
-                state.periodData::class,
-            )
-            // And the Day payload must be the *focused* day's, not a neighbour's.
-            val groups = (state.periodData as? CalendarPeriodData.Day)?.groups ?: return@forEach
-            val expectedGroupCount = if (state.focusedDate == today) 1 else 0
-            assertEquals(
-                "groups for ${state.focusedDate} (today is $today)",
-                expectedGroupCount,
-                groups.size,
-            )
         }
     }
 

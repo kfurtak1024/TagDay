@@ -73,6 +73,16 @@ Room's `Flow`s would. Two small pieces of scaffolding make this work off-device
   `StandardTestDispatcher` default) means a `viewModelScope.launch` against in-memory
   fakes runs eagerly, so tests can assert immediately after calling a method instead of
   sprinkling `advanceUntilIdle()` everywhere.
+- **Turbine** (`app.cash.turbine`) for assertions about the emissions a flow makes *along the
+  way*, rather than where it settled. `CalendarViewModelTest.everyEmission_pairsTheDataWithItsOwnQuery`
+  is the case that needs it: the bug it guards (BACKLOG F5) was only ever visible in an
+  intermediate emission — `.value` was always correct afterwards. It replaced a hand-rolled
+  `collectInto` helper that did a quarter of the same job.
+
+  Turbine is deliberately **not** used everywhere. Most tests here assert on a `StateFlow`'s
+  settled `.value` after calling a method, which is the clearer shape for that question;
+  rewriting them into `awaitItem()` sequences would add conflation and ordering concerns
+  without answering anything better.
 - **`TestScope.keepSubscribed(flow)`** holds a subscription open on `backgroundScope` for
   the rest of the test. Every `uiState` here is `SharingStarted.WhileSubscribed`, so with
   no collector the upstream never runs and `.value` stays on the initial state — every
@@ -177,8 +187,8 @@ no variant tasks, which looks like a straight incompatibility. Worth retrying wh
 supports AGP 9. Until then, coverage is judged structurally — see § What gets a unit test above and
 `BACKLOG.md` F20 for the known gaps. The two largest are now closed: SQL is covered by
 `TagDaoTest`/`TagInstanceDaoTest`, and Compose by `WeekContentTest`, `DayContentTest` and
-`TagQuickEntryBarTest`. What remains is the instance sheet (a `ModalBottomSheet`, untried here),
-Turbine in place of the hand-rolled `collectInto`, and everything in the device list above.
+`TagQuickEntryBarTest`. The instance sheet is covered too — `ModalBottomSheet` turns out to work
+fine under Robolectric. What remains is everything in the device list above.
 
 ## Running them
 

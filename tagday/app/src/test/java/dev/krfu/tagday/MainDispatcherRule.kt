@@ -47,14 +47,3 @@ class MainDispatcherRule(
 fun TestScope.keepSubscribed(flow: Flow<*>) {
     backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { flow.collect {} }
 }
-
-/**
- * Like [keepSubscribed], but records every emission into [into] rather than discarding them.
- * For assertions about the emissions a flow makes *along the way* — a `StateFlow`'s `.value`
- * only ever shows where it settled, which is exactly what hides an inconsistent intermediate
- * state (see `CalendarViewModelTest.everyEmission_pairsTheDataWithItsOwnQuery`).
- */
-@OptIn(ExperimentalCoroutinesApi::class)
-fun <T> TestScope.collectInto(flow: Flow<T>, into: MutableList<T>) {
-    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { flow.collect { into += it } }
-}

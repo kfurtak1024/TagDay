@@ -14,6 +14,7 @@ composeBom = "2026.06.01"
 ksp = "2.3.10"
 room = "2.8.4"
 robolectric = "4.16"
+turbine = "1.2.1"
 hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 navigationCompose = "2.9.8"
@@ -22,6 +23,7 @@ navigationCompose = "2.9.8"
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
