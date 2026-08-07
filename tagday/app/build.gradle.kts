@@ -42,8 +42,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures {
         compose = true
@@ -77,8 +77,19 @@ android {
 }
 
 kotlin {
+    // Declared explicitly so compilation doesn't depend on whichever JDK happens to be on the
+    // machine — `settings.gradle.kts` already applies the foojay resolver, which provisions
+    // this if it's missing, and CI pins the same version (BACKLOG F27).
+    //
+    // 21 is a hard requirement, not a preference: Robolectric refuses to create a sandbox for
+    // Android SDK 36 on anything lower ("Android SDK 36 requires Java 21"), so every Compose
+    // and DAO test fails at class level on 17. Raising `targetSdk` may raise this floor again.
+    //
+    // The *output* target below stays 17 — the toolchain is the JDK that compiles, the
+    // jvmTarget is the bytecode it emits, and those are deliberately different (F28).
+    jvmToolchain(21)
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 

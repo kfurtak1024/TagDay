@@ -327,6 +327,64 @@ re-raised as though it had been missed.
   guaranteed in landscape, which ties it to F23. *(Found 2026-08-07, not part of the original
   audit.)*
 
+### Added by the stack/tooling audit, 2026-08-08
+
+These came from a sweep over the build, CI, and tooling against current Android practice
+rather than from reading app code. The architecture and library choices came out clean — the
+findings are all build and process hygiene.
+
+- [x] **F26 — CI doesn't run lint.** *Fixed — `lintDebug` added to the CI command, and the
+  failure artifact now uploads the lint HTML report alongside the test report.*
+
+  Original finding: `.github/workflows/ci.yml` runs
+  `testDebugUnitTest assembleDebug` only, so the `warningsAsErrors` gate added for F23 fires
+  on a developer machine and nowhere else. A push reintroducing a lint error goes green.
+
+- [x] **F27 — No JVM toolchain is declared.** *Fixed — `jvmToolchain(21)` in
+  `app/build.gradle.kts`, matched by CI's `java-version`. **21 is a hard requirement, not a
+  preference**: Robolectric refuses to create a sandbox for Android SDK 36 on anything lower,
+  so every Compose and DAO test fails at class level on 17. Found by trying 17 first. Raising
+  `targetSdk` may raise this floor again.*
+
+  Original finding: `settings.gradle.kts` applies
+  `foojay-resolver-convention`, whose whole purpose is provisioning toolchains, but nothing
+  declares one — so compilation uses whatever JDK is ambient (CI pins 21, local is 17). The
+  bytecode target is pinned, so output matches, but the compiler doesn't.
+
+- [x] **F28 — Java 11 source/target is dated.** *Fixed — `compileOptions` and `jvmTarget` now
+  17. Deliberately distinct from the toolchain above: the toolchain is the JDK that compiles,
+  `jvmTarget` is the bytecode it emits.*
+
+  Original finding: AGP 9.3.1 with Kotlin 2.4.10 and compileSdk 37,
+  compiling to Java 11. AGP 8+ already requires JDK 17 to run; 17 is the current baseline.
+
+- [ ] **F29 — No README.** A LICENSE, a published privacy policy (`docs/privacy.md`,
+  `tagday.krfu.dev`) and ~4,100 lines of `docs/` — and nothing at the repo root saying what
+  TagDay is. `CLAUDE.md` is an entry point for the CLI, not for a human landing on the repo.
+
+- [ ] **F30 — Navigation uses string routes.** `TagDayDestination` is an enum of route strings;
+  Navigation Compose 2.8+ supports type-safe `@Serializable` routes. **Sequenced behind M5a**,
+  which already commits to kotlinx.serialization (ADR-032) — the plugin cost is paid there, so
+  the migration is nearly free afterwards and premature before.
+
+- [ ] **F31 — Nothing surfaces dependency updates.** Lint's `NewerVersionAvailable` is disabled
+  (correctly — as a *gate* it breaks untouched builds), which leaves no signal at all. Renovate
+  or Dependabot would restore it without failing builds.
+
+- [ ] **F32 — No baseline profile.** Standard startup-performance practice. Needs a device to
+  generate, which ADR-039 established is available. M6-shaped.
+
+- [ ] **F33 — No `proguard-rules.pro`.** Nothing to fix today, since R8 is off (M6), but the
+  file doesn't exist for when it's turned on. Room/Hilt/Compose ship their own rules; this is a
+  placeholder gap.
+
+- [ ] **F34 — Play-release signals contradict the milestone docs.** `docs/privacy.md` and a
+  `CNAME` for `tagday.krfu.dev` are both Play Store prerequisites, while `MILESTONES.md` says a
+  public release "isn't currently planned". One of the two should move.
+
+- [ ] **F35 — `DECISIONS.md` is 1,977 lines with no index.** Forty ADRs and growing, navigable
+  only by search. An index at the top, or a split, before it gets worse.
+
 ---
 
 ## Deliberately not listed

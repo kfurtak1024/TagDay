@@ -26,18 +26,25 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
+          # Must match the toolchain in app/build.gradle.kts, so Gradle uses this JDK directly
+          # rather than having foojay provision a second one (BACKLOG F27). 21 is not a
+          # preference: Robolectric refuses to emulate Android SDK 36 on anything lower.
           java-version: "21"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Unit tests + debug build
-        run: ./gradlew testDebugUnitTest assembleDebug --console=plain
+      - name: Unit tests + lint + debug build
+        # lintDebug matters here: app/build.gradle.kts sets warningsAsErrors, and without this
+        # step that gate only ever fires on a developer machine (BACKLOG F26).
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
 
-      - name: Upload test results on failure
+      - name: Upload test and lint reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: unit-test-results
-          path: tagday/app/build/reports/tests/testDebugUnitTest/
+          name: build-reports
+          path: |
+            tagday/app/build/reports/tests/testDebugUnitTest/
+            tagday/app/build/reports/lint-results-debug.html
           retention-days: 7

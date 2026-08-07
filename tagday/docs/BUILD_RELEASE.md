@@ -24,6 +24,11 @@ the tag *is* the release record, no separate release branch needed.
   checksum validation.
 - `./gradlew testDebugUnitTest assembleDebug` — the same two commands used throughout
   local development to verify changes; nothing CI-specific.
+- **JDK 21 is required**, not optional: Robolectric refuses to emulate Android SDK 36 on
+  anything lower, so the Compose and DAO tests fail at class level otherwise. `jvmToolchain(21)`
+  in `app/build.gradle.kts` declares it (provisioned automatically by the foojay resolver in
+  `settings.gradle.kts`), and CI pins the same version. The *bytecode* target is 17 — the
+  toolchain compiles, `jvmTarget` decides what it emits.
 - `./gradlew lintDebug` — Android Lint, with `warningsAsErrors = true` in
   `app/build.gradle.kts`, so a new warning fails the build rather than accumulating unread.
   Three "a newer version of X exists" checks are disabled there (`OldTargetApi`,
