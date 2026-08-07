@@ -269,9 +269,10 @@ re-raised as though it had been missed.
   `WeekContentTest` covers ADR-038's Week semantics — three tests, verified to fail without the
   fix — and now runs on the JVM under Robolectric as part of `testDebugUnitTest` (ADR-040);
   `app/src/androidTest/` has been removed. See ADR-039 for the emulator setup, kept as a local
-  tool. **Still open**: Room/DAO tests (no test at any layer executes SQL), coverage breadth
-  (drag-reorder, capsule hit targets, quick-entry, the sheet), and the 19 manual checks in
-  `UI_UX.md`.*
+  tool. Room/DAO tests now exist too — `TagDaoTest`/`TagInstanceDaoTest`, 16 tests over real
+  in-memory SQLite, each verified against a deliberate SQL mutation. **Still open**: Compose
+  coverage beyond `WeekContentTest` (quick-entry, the instance sheet, capsule hit targets),
+  Turbine to replace the hand-rolled `collectInto`, and the 19 manual checks in `UI_UX.md`.*
 
   Original finding: `app/src/androidTest` isn't present, though
   the dependencies are configured in `app/build.gradle.kts`. `TESTING.md` documents this as a

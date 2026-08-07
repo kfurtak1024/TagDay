@@ -5,6 +5,11 @@ based on the pattern that emerged across M1–M4 rather than a plan written up f
 
 ## What gets a unit test
 
+- **DAO SQL** (`TagDaoTest`, `TagInstanceDaoTest`): the queries themselves, against a real
+  in-memory SQLite via Robolectric (ADR-040). Everything else fakes the DAO, so until these
+  existed the SQL was only ever a compiler-checked string — `COLLATE NOCASE`, the `ESCAPE`
+  clause, `OnConflictStrategy.IGNORE` (ADR-037), `COUNT(DISTINCT date)` (F9) and the cascading
+  delete were all unverified.
 - **Repository aggregation/mapping logic** (`TagInstanceRepositoryImpl`,
   `TagRepositoryImpl`): the real logic worth locking down — grouping instances by tag,
   summarizing per type, per-day/per-range bucketing, `.copy()`-based partial updates,
@@ -137,12 +142,15 @@ emulator turned one red because `WeekContent`'s seven non-scrolling rows no long
 correctly", and keep `assertIsDisplayed` for when visibility is genuinely the thing under test.
 Conflating them is what makes a semantics test quietly depend on screen height.
 
-**Verify every UI test can fail.** A semantics assertion passes for the wrong reasons very
+**Verify every test can fail — UI tests especially, but SQL tests too.** A semantics assertion passes for the wrong reasons very
 easily: `onNodeWithContentDescription` searches the *merged* tree, and `clickable` merges
 descendants by itself, so a row can look labelled when nothing labelled it. Delete the modifier
-under test and confirm the test goes red before trusting it. (Doing this the first time, the
-mutation silently didn't apply — the target line ended in `},` not `}` — and three tests
-"passed" against unchanged code.)
+under test and confirm the test goes red before trusting it. Two real catches from doing this:
+once the mutation silently didn't apply at all (the target line ended in `},` not `}`) and three
+tests "passed" against unchanged code; and once a DAO test asserting "searching `%` finds
+nothing" passed with the `ESCAPE` clause *deleted*, because a mangled pattern also finds
+nothing. An assertion has to distinguish the fix from its absence, not merely hold while the fix
+is present.
 
 **What still needs a real device**, and stays in `UI_UX.md`'s manual list: rendering and
 contrast, gesture feel and timing, the drag-reorder arbitration (ADR-022), and actual TalkBack.
@@ -153,9 +161,9 @@ ever wanted again, and the `androidTestImplementation` dependencies are kept for
 
 No automated measurement: Kover 0.9.1 produces an empty report against AGP 9.3.1 and registers
 no variant tasks, which looks like a straight incompatibility. Worth retrying when Kover
-supports AGP 9. Until then, coverage is judged structurally — see § What gets a unit test above
-and `BACKLOG.md` F20 for the known gaps, the largest being that **no test at any layer executes
-SQL**.
+supports AGP 9. Until then, coverage is judged structurally — see § What gets a unit test above and
+`BACKLOG.md` F20 for the known gaps. The largest of them, "no test at any layer executes SQL",
+is now closed; what remains is Compose coverage beyond `WeekContentTest`.
 
 ## Running them
 
