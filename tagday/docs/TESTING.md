@@ -152,8 +152,21 @@ nothing" passed with the `ESCAPE` clause *deleted*, because a mangled pattern al
 nothing. An assertion has to distinguish the fix from its absence, not merely hold while the fix
 is present.
 
+**Robolectric has no real font metrics**, and this bites harder than it sounds. Text measures
+degenerately — a "walk" capsule's label comes out ~5px wide against its 32px ✕ — so *any*
+coordinate-based assertion is testing a fictional layout. Concretely, `performClick()` on a
+capsule row lands on the remove button, because the ✕ occupies most of the row at those
+measurements. Where a test must hit a specific region, use `performTouchInput { click(offset) }`
+with an offset that stays correct regardless of text width (a leading edge, say), and don't
+write assertions that depend on where text ends.
+
+The direct casualty is **ADR-026/027**, whose entire subject is touch-target geometry: the ✕'s
+48dp minimum-target inflation reaching back over the tag name so that tapping the name deleted
+the tag. That cannot be verified here and stays a device check.
+
 **What still needs a real device**, and stays in `UI_UX.md`'s manual list: rendering and
-contrast, gesture feel and timing, the drag-reorder arbitration (ADR-022), and actual TalkBack.
+contrast, capsule touch-target geometry (ADR-026/027), gesture feel and timing, the drag-reorder
+arbitration (ADR-022), and actual TalkBack.
 `app/src/androidTest/` no longer exists; ADR-039 records how to run an emulator here if it's
 ever wanted again, and the `androidTestImplementation` dependencies are kept for that.
 
@@ -162,8 +175,10 @@ ever wanted again, and the `androidTestImplementation` dependencies are kept for
 No automated measurement: Kover 0.9.1 produces an empty report against AGP 9.3.1 and registers
 no variant tasks, which looks like a straight incompatibility. Worth retrying when Kover
 supports AGP 9. Until then, coverage is judged structurally — see § What gets a unit test above and
-`BACKLOG.md` F20 for the known gaps. The largest of them, "no test at any layer executes SQL",
-is now closed; what remains is Compose coverage beyond `WeekContentTest`.
+`BACKLOG.md` F20 for the known gaps. The two largest are now closed: SQL is covered by
+`TagDaoTest`/`TagInstanceDaoTest`, and Compose by `WeekContentTest`, `DayContentTest` and
+`TagQuickEntryBarTest`. What remains is the instance sheet (a `ModalBottomSheet`, untried here),
+Turbine in place of the hand-rolled `collectInto`, and everything in the device list above.
 
 ## Running them
 
