@@ -24,7 +24,9 @@ class FakeTagRepository(initialTags: List<Tag> = emptyList()) : TagRepository {
     override fun observeFiltered(query: String): Flow<List<Tag>> =
         tags.map { all -> all.filter { it.name.contains(query, ignoreCase = true) } }
 
-    override suspend fun createTag(name: String, color: Int, type: TagType): Long {
+    /** Mirrors the real impl's collision behaviour: an existing name resolves to that tag. */
+    override suspend fun createTag(name: String, color: Int, type: TagType): Long? {
+        tags.value.find { it.name.equals(name, ignoreCase = true) }?.let { return it.id }
         val id = (tags.value.maxOfOrNull { it.id } ?: 0L) + 1
         tags.value += Tag(id = id, name = name, type = type, color = color, createdAt = id)
         return id

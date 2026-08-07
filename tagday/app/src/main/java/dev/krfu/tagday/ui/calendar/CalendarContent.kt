@@ -57,6 +57,9 @@ fun CalendarContent(
     onNavigateToTags: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onAddExistingTag: (tagId: Long) -> Unit,
+    onAddRatingToExistingTag: (tagId: Long, rating: Int) -> Unit,
+    onAddValuesToExistingTag: (tagId: Long, values: List<String>) -> Unit,
+    onEditExistingTag: (tagId: Long) -> Unit,
     onCreateTag: (name: String, type: TagType, rating: Int?, values: List<String>) -> Unit,
     onCreateTagForEditing: (name: String, type: TagType) -> Unit,
     onGroupClick: (TagDisplayGroup) -> Unit,
@@ -172,6 +175,9 @@ fun CalendarContent(
                 TagQuickEntryBar(
                     allTags = uiState.allTags,
                     onAddExistingTag = onAddExistingTag,
+                    onAddRatingToExistingTag = onAddRatingToExistingTag,
+                    onAddValuesToExistingTag = onAddValuesToExistingTag,
+                    onEditExistingTag = onEditExistingTag,
                     onCreateTag = onCreateTag,
                     onCreateTagForEditing = onCreateTagForEditing,
                 )

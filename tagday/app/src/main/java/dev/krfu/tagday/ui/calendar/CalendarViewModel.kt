@@ -226,8 +226,17 @@ class CalendarViewModel @Inject constructor(
 
     /** Instance-list sheet's add-value row for Valued groups — see ADR-020. */
     fun addValue(tagId: Long, value: String) {
+        addValues(tagId, listOf(value))
+    }
+
+    /**
+     * One instance per value on the focused day — quick-entry's `film:dune,tenet` against a tag
+     * that already exists (ADR-034). Distinct `sortOrder`s come from the repository, so a batch
+     * keeps the order it was typed in.
+     */
+    fun addValues(tagId: Long, values: List<String>) {
         viewModelScope.launch {
-            tagInstanceRepository.addValues(tagId, query.value.focusedDate.epochDay(), listOf(value))
+            tagInstanceRepository.addValues(tagId, query.value.focusedDate.epochDay(), values)
         }
     }
 
@@ -251,7 +260,10 @@ class CalendarViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
-            val tagId = tagRepository.createTag(name, color, type)
+            // Null only if the name both failed to insert and then failed to be found, which
+            // means it was deleted in between — nothing sensible to add to, so drop the input
+            // rather than inventing a tag (BACKLOG F3).
+            val tagId = tagRepository.createTag(name, color, type) ?: return@launch
             val date = query.value.focusedDate.epochDay()
             if (values.isEmpty()) {
                 tagInstanceRepository.addInstance(tagId, date, rating)
@@ -272,9 +284,18 @@ class CalendarViewModel @Inject constructor(
     fun createTagForEditing(name: String, type: TagType) {
         viewModelScope.launch {
             val color = TagPalette.colors[uiState.value.allTags.size % TagPalette.colors.size]
-            val tagId = tagRepository.createTag(name, color, type)
+            val tagId = tagRepository.createTag(name, color, type) ?: return@launch
             _pendingTagEdit.value = tagId
         }
+    }
+
+    /**
+     * Opens the instance sheet for a tag that already exists, without creating anything —
+     * quick-entry's bare-name case for Rated and Valued (ADR-034). The counterpart to
+     * [createTagForEditing], which does the same thing for a tag it has just created.
+     */
+    fun requestTagEdit(tagId: Long) {
+        _pendingTagEdit.value = tagId
     }
 
     fun consumePendingTagEdit() {

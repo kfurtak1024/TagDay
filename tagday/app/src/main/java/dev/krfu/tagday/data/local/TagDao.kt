@@ -3,6 +3,7 @@ package dev.krfu.tagday.data.local
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import dev.krfu.tagday.data.local.entity.Tag
@@ -24,8 +25,18 @@ interface TagDao {
     @Query("SELECT EXISTS(SELECT 1 FROM tags WHERE name = :name COLLATE NOCASE AND id != :excludingId)")
     suspend fun nameExists(name: String, excludingId: Long = 0): Boolean
 
-    @Insert
+    /**
+     * Returns the new row id, or **-1** if a tag with this name already exists — `name` carries
+     * a unique index, and the default `ABORT` threw `SQLiteConstraintException` straight out of
+     * the calling coroutine, crashing the app (BACKLOG F3). `IGNORE` turns the collision into a
+     * value the caller can act on; `TagRepositoryImpl.createTag` resolves it to the existing
+     * tag.
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(tag: Tag): Long
+
+    @Query("SELECT * FROM tags WHERE name = :name COLLATE NOCASE LIMIT 1")
+    suspend fun findByName(name: String): Tag?
 
     @Update
     suspend fun update(tag: Tag)

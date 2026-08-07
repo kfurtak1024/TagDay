@@ -472,6 +472,16 @@ not scoped by this doc; don't design ahead of it.
   - **Rated creation (ADR-031)**: pick Rated for a new name, press `+`, and confirm the sheet
     opens on an empty Rated panel rather than the day showing an unrated bare name; then check
     `mood:***` still creates it rated in one step without opening the sheet.
+  - **Existing-tag quick entry (ADR-034)**: with an existing Valued `film`, type `film:dune`
+    and confirm the value lands on the day (it used to vanish); type bare `film` and confirm
+    the sheet opens rather than the capsule reading `film: []`. Same two for a Rated tag with
+    `mood:***` and `mood`. Tap a *suggestion* for a Valued tag and confirm it opens the sheet.
+    Then `walk:***` on a Simple `walk` — one plain instance, no error.
+  - **Write paths (ADR-037)**: double-tap "+" fast on a brand-new name and confirm one tag is
+    created with two instances rather than a crash. Type into a value field and confirm the
+    text isn't lost if the sheet is closed right after typing (400ms debounce), and that a
+    value saved with trailing spaces comes back trimmed. Press the keyboard's Done on both
+    quick-entry and the add-value field.
   - **Calendar state (ADR-036)**: step a day back and forth and watch for a flash of the
     previous day's capsules under the new date, and for Week/Month/Year rendering empty for a
     frame when the zoom changes — both should be gone. Leave the app open across midnight (or

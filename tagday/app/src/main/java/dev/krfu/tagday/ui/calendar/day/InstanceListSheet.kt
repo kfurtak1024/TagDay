@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -59,6 +61,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -67,9 +70,17 @@ import dev.krfu.tagday.data.local.entity.TagInstance
 import dev.krfu.tagday.data.local.entity.TagType
 import dev.krfu.tagday.data.model.TagDisplayGroup
 import dev.krfu.tagday.ui.components.VerticalScrollbar
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
+
+/**
+ * How long typing has to pause before an edited value is written. Long enough that ordinary
+ * typing produces one write rather than one per character, short enough that closing the sheet
+ * straight after typing still saves — see BACKLOG F11.
+ */
+private const val VALUE_WRITE_DEBOUNCE_MS = 400L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -597,6 +608,10 @@ private fun AddValueRow(onAdd: (String) -> Unit, modifier: Modifier = Modifier) 
             onValueChange = { value = it },
             singleLine = true,
             placeholder = { Text(stringResource(R.string.day_instances_sheet_value_placeholder)) },
+            // The keyboard's own action submits, so adding several values in a row never needs
+            // a reach for "+" between them (BACKLOG F18).
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
             modifier = Modifier.weight(1f),
         )
         IconButton(onClick = { submit() }) {
@@ -618,17 +633,23 @@ private fun ValueField(
 ) {
     // A local buffer so the field can freely show whatever's being typed (including a
     // transient blank while replacing the whole value) without ever persisting a blank —
-    // onUpdateInstance only fires once the trimmed text is non-empty again, mirroring
+    // the write below only fires once the trimmed text is non-empty again, mirroring
     // AddValueRow's blank guard.
     var text by remember(instance.id) { mutableStateOf(instance.value ?: "") }
+    // Debounced, and trimmed. This used to write on *every keystroke* — one Room UPDATE per
+    // character, each round-tripping back through the day's flow to recompose this sheet — and
+    // it persisted the untrimmed text while testing the trimmed version, so `"dune "` is what
+    // landed in the database (BACKLOG F11). Cancelling on each new keystroke means only the
+    // pause at the end of typing writes.
+    LaunchedEffect(text, instance.id) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty() || trimmed == instance.value) return@LaunchedEffect
+        delay(VALUE_WRITE_DEBOUNCE_MS)
+        onUpdateInstance(instance.copy(value = trimmed))
+    }
     OutlinedTextField(
         value = text,
-        onValueChange = { newValue ->
-            text = newValue
-            if (newValue.trim().isNotEmpty()) {
-                onUpdateInstance(instance.copy(value = newValue))
-            }
-        },
+        onValueChange = { newValue -> text = newValue },
         singleLine = true,
         placeholder = { Text(stringResource(R.string.day_instances_sheet_value_placeholder)) },
         modifier = modifier,

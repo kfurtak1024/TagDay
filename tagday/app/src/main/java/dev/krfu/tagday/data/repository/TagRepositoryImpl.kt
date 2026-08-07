@@ -14,8 +14,16 @@ class TagRepositoryImpl @Inject constructor(
     override fun observeFiltered(query: String): Flow<List<Tag>> =
         tagDao.observeFiltered(query.escapeLikeWildcards())
 
-    override suspend fun createTag(name: String, color: Int, type: TagType): Long =
-        tagDao.insert(Tag(name = name, type = type, color = color, createdAt = System.currentTimeMillis()))
+    override suspend fun createTag(name: String, color: Int, type: TagType): Long? {
+        val inserted = tagDao.insert(
+            Tag(name = name, type = type, color = color, createdAt = System.currentTimeMillis()),
+        )
+        // -1 means the unique index on `name` rejected it — someone got there first. Resolve to
+        // that tag rather than failing: for the race this guards (a double-tapped "+"), it's
+        // the same tag the caller was trying to make. Its *type* is whatever it was created
+        // with, which is the rule everywhere else too (ADR-034, and tag type is immutable).
+        return if (inserted != -1L) inserted else tagDao.findByName(name)?.id
+    }
 
     override suspend fun nameExists(name: String, excludingId: Long): Boolean =
         tagDao.nameExists(name, excludingId)

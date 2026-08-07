@@ -14,13 +14,18 @@ class TagRepositoryImplTest {
         var lastUpdated: Tag? = null
         var lastFilterQuery: String? = null
 
+        /** What `insert` returns; -1 is Room's "the unique index rejected it" under IGNORE. */
+        var insertResult: Long = 1L
+        var existingByName: Tag? = null
+
         override fun observeAll(): Flow<List<Tag>> = throw NotImplementedError()
         override fun observeFiltered(query: String): Flow<List<Tag>> {
             lastFilterQuery = query
             return emptyFlow()
         }
         override suspend fun nameExists(name: String, excludingId: Long): Boolean = throw NotImplementedError()
-        override suspend fun insert(tag: Tag): Long = throw NotImplementedError()
+        override suspend fun insert(tag: Tag): Long = insertResult
+        override suspend fun findByName(name: String): Tag? = existingByName
         override suspend fun update(tag: Tag) {
             lastUpdated = tag
         }
@@ -48,6 +53,33 @@ class TagRepositoryImplTest {
         TagRepositoryImpl(dao).observeFiltered("50%")
 
         assertEquals("50\\%", dao.lastFilterQuery)
+    }
+
+    @Test
+    fun createTag_resolvesToTheExistingTagWhenTheNameIsTaken() = runBlocking {
+        // Two "+" presses in quick succession both pass the caller's duplicate check against a
+        // stale tag list; the second insert hits the unique index on `name`. Under the default
+        // ABORT that threw out of the coroutine and crashed the app (BACKLOG F3). Now it
+        // resolves to the tag that won the race.
+        val dao = FakeTagDao().apply {
+            insertResult = -1L
+            existingByName = tag()
+        }
+
+        val id = TagRepositoryImpl(dao).createTag("walk", 0, TagType.SIMPLE)
+
+        assertEquals(1L, id)
+    }
+
+    @Test
+    fun createTag_returnsNullWhenTheNameIsNeitherInsertableNorFindable() = runBlocking {
+        // Inserted-and-then-deleted in between. Nothing sensible to attach an instance to.
+        val dao = FakeTagDao().apply {
+            insertResult = -1L
+            existingByName = null
+        }
+
+        assertEquals(null, TagRepositoryImpl(dao).createTag("walk", 0, TagType.SIMPLE))
     }
 
     @Test

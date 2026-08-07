@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
@@ -32,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.krfu.tagday.R
@@ -45,6 +48,9 @@ private const val MAX_VISIBLE_SUGGESTIONS = 4
 fun TagQuickEntryBar(
     allTags: List<Tag>,
     onAddExistingTag: (tagId: Long) -> Unit,
+    onAddRatingToExistingTag: (tagId: Long, rating: Int) -> Unit,
+    onAddValuesToExistingTag: (tagId: Long, values: List<String>) -> Unit,
+    onEditExistingTag: (tagId: Long) -> Unit,
     onCreateTag: (name: String, type: TagType, rating: Int?, values: List<String>) -> Unit,
     onCreateTagForEditing: (name: String, type: TagType) -> Unit,
     modifier: Modifier = Modifier,
@@ -87,10 +93,19 @@ fun TagQuickEntryBar(
 
     val isCreating = exactMatch == null && isCreatableName
 
+    // Which of those an existing tag gets is decided by QuickEntryAction, a pure function so
+    // ADR-034's table can be unit-tested; this only routes the result to the callbacks.
+    fun addToExisting(tag: Tag) = when (val action = QuickEntryAction.forExistingTag(tag, parsed)) {
+        is QuickEntryAction.AddInstance -> onAddExistingTag(action.tagId)
+        is QuickEntryAction.AddRating -> onAddRatingToExistingTag(action.tagId, action.rating)
+        is QuickEntryAction.AddValues -> onAddValuesToExistingTag(action.tagId, action.values)
+        is QuickEntryAction.OpenSheet -> onEditExistingTag(action.tagId)
+    }
+
     fun submit() {
         when {
             trimmedName.isEmpty() -> return
-            exactMatch != null -> onAddExistingTag(exactMatch.id)
+            exactMatch != null -> addToExisting(exactMatch)
             !isCreatableName -> return
 
             // A seed only applies to the type it belongs to: pick Simple after typing
@@ -132,8 +147,10 @@ fun TagQuickEntryBar(
                         Text(text = tag.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
                     leadingContent = { ColorDot(color = tag.color) },
+                    // Same dispatch as typing the name exactly: a suggestion carries no seed,
+                    // so Rated/Valued open the sheet rather than gaining a blank instance.
                     modifier = Modifier.clickable {
-                        onAddExistingTag(tag.id)
+                        addToExisting(tag)
                         query = ""
                     },
                 )
@@ -158,6 +175,11 @@ fun TagQuickEntryBar(
                     onValueChange = { raw -> query = sanitizeNameHalf(raw) },
                     singleLine = true,
                     placeholder = { Text(stringResource(R.string.day_quick_entry_placeholder)) },
+                    // Submitting from the keyboard, in an app whose main loop is
+                    // type-a-tag-and-add — "+" stays, it's just no longer the only way
+                    // (BACKLOG F18). `submit()` already no-ops on input it can't act on.
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() }),
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { submit() }, enabled = exactMatch != null || isCreating) {

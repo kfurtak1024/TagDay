@@ -9,7 +9,12 @@ interface TagRepository {
 
     fun observeFiltered(query: String): Flow<List<Tag>>
 
-    suspend fun createTag(name: String, color: Int, type: TagType): Long
+    /**
+     * Creates the tag, or returns the id of the one that already has this name. Racing "+"
+     * presses can both pass the caller's duplicate check against a stale tag list, and a
+     * unique-index violation used to crash rather than resolve (BACKLOG F3).
+     */
+    suspend fun createTag(name: String, color: Int, type: TagType): Long?
 
     suspend fun nameExists(name: String, excludingId: Long = 0): Boolean
 

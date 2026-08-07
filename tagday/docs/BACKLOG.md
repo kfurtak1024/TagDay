@@ -50,7 +50,15 @@ re-raised as though it had been missed.
   privacy call (does a diary belong in the OS backup stream?); that framing stands, but the
   data-loss half closes with a single `<exclude>` and shouldn't wait on the privacy half.
 
-- [ ] **F3 — No error handling on any database write, anywhere.** `grep` for
+- [ ] **F3 — No error handling on any database write, anywhere.** ⚠️ *Partially fixed —
+  ADR-037 point 1. The one **reachable** crash (a double-tapped "+" violating the unique index
+  on `tags.name`) is closed: the insert uses `IGNORE` and resolves to the existing tag.
+  **The general half is still open** — every repository call is still a bare
+  `viewModelScope.launch { … }` with no `catch`, and `CalendarUiState` still has no error
+  field, so a genuine failure (disk full, corrupt database) still crashes. Left open because it
+  needs a UX decision about what the user should see.*
+
+  Original finding: `grep` for
   `try {`/`catch`/`runCatching` across `app/src/main/java` returns nothing, and
   `CalendarUiState` has no error field. Every mutation is a bare
   `viewModelScope.launch { repository… }`, so anything thrown crashes the app. Concrete
@@ -63,9 +71,13 @@ re-raised as though it had been missed.
 
 ## Tier 2 — functional bugs
 
-- [ ] **F4 — Quick-entry silently discards the typed value or rating when the tag already
-  exists.** *Decided — see ADR-034: the seed applies to the existing tag's own type, and a
-  bare name opens that tag's sheet. Code not yet written.* `TagQuickEntryBar.kt:93` checks `exactMatch != null` *before* the type branches, so
+- [x] **F4 — Quick-entry silently discards the typed value or rating when the tag already
+  exists.** *Fixed — ADR-034. The dispatch lives in `QuickEntryAction.forExistingTag`, a pure
+  function extracted precisely so ADR-034's table could be unit-tested rather than buried in a
+  Composable this project can't test. Tapping a suggestion now routes through the same rule.
+  `selectedGroupIsFreshTag` renamed to `selectedGroupMayBeEmpty`, as the ADR asked.*
+
+  Original finding: `TagQuickEntryBar.kt:93` checks `exactMatch != null` *before* the type branches, so
   it always calls `onAddExistingTag(id)` → `addInstance(tagId, date)` with
   `rating = null, value = null`. Typing `film:dune` on an existing `film` throws "dune" away.
   For a Valued tag this leaves a phantom value-less instance: `summarize` drops it via
@@ -158,7 +170,8 @@ re-raised as though it had been missed.
   `PeriodNavigationRow` and `TagQuickEntryBar` *do* use `rememberSaveable` — so this is an
   inconsistency to settle, not the house style.
 
-- [ ] **F11 — `ValueField` writes to Room on every keystroke** (`InstanceListSheet.kt:629`):
+- [x] **F11 — `ValueField` writes to Room on every keystroke** *— fixed, ADR-037 point 2:
+  debounced 400ms and the persisted text is now trimmed.* Original finding: (`InstanceListSheet.kt:629`):
   one `UPDATE` per character, no debounce, each round-tripping through the day's flow and
   recomposing the sheet. It also persists `newValue` untrimmed while the guard tests
   `newValue.trim()`, so `"dune "` is what lands in the database — inconsistent with
@@ -214,7 +227,8 @@ re-raised as though it had been missed.
   formatter is also a top-level `val`, binding the locale at class-init. Note
   `CalendarPeriodLabelsTest` asserts the current en-GB-shaped output, so it changes with this.
 
-- [ ] **F18 — No keyboard submit path.** Quick-entry (`TagQuickEntryBar.kt:154`) and the
+- [x] **F18 — No keyboard submit path.** *Fixed — `ImeAction.Done` plus `KeyboardActions` on
+  both quick-entry and the sheet's add-value field (ADR-037).* Original finding: Quick-entry (`TagQuickEntryBar.kt:154`) and the
   add-value field are `singleLine` with no `imeAction`/`KeyboardActions`, so "+" must be tapped
   on every single entry — in an app whose entire loop is type-a-tag-and-add.
 

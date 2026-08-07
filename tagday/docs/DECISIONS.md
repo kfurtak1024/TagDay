@@ -1763,3 +1763,57 @@ unit test. Without that, point 2 could only be verified by waiting until midnigh
 and was confirmed to fail against the previous implementation before the fix was kept. Points 2
 and 3 have tests that drive virtual time. **Not verified on a device** — see `UI_UX.md`'s
 manual-check list.
+
+---
+
+## ADR-037: A taken tag name resolves instead of throwing; value edits are debounced
+
+**Decision:** Two changes to the write paths behind quick-entry and the instance sheet.
+Addresses BACKLOG F11 and F18 in full, and the *reachable crash* half of F3.
+
+1. **`TagDao.insert` uses `OnConflictStrategy.IGNORE`**, and `TagRepositoryImpl.createTag`
+   resolves a rejected insert to the existing tag via a new `findByName`, returning `Long?`
+   (null only if the name is neither insertable nor findable — deleted in between). `tags.name`
+   carries a unique index, quick-entry's duplicate guard compares against `allTags` as of the
+   last flow emission, and two fast "+" presses both pass it — so the second insert threw
+   `SQLiteConstraintException` straight out of `viewModelScope` and killed the process.
+2. **`ValueField` debounces its write** (400ms) and persists the *trimmed* text. It previously
+   wrote on every keystroke — one Room `UPDATE` per character, each round-tripping back through
+   the day's flow to recompose the sheet — while persisting untrimmed text it had only
+   validated trimmed, so `"dune "` is what reached the database.
+
+`ImeAction.Done` on quick-entry and the add-value field is folded in as the same kind of
+change: both are `singleLine` fields whose only submit was a button tap.
+
+**Why:** for (1), a constraint violation here isn't an error condition worth surfacing — it
+means the tag the user was trying to make already exists, which is precisely the state the
+caller wanted to reach. Resolving is what they meant. Crashing was never a defensible response
+to pressing a button twice.
+
+For (2), the debounce is not primarily about write volume — a handful of `UPDATE`s is nothing
+for SQLite. It's that each write came back through the observing flow and recomposed the sheet
+mid-typing, which is the kind of thing that produces cursor and IME oddities that are miserable
+to diagnose later. Trimming on write closes a real (if small) data defect: the guard and the
+value disagreed about what was being saved.
+
+**Alternatives considered:** (1a) `OnConflictStrategy.REPLACE` on insert. (1b) Wrap the write
+in `try`/`catch` and surface an error to the UI. (1c) Make the duplicate check atomic with a
+single "get or create" transaction. (2a) Write on focus loss instead of debouncing. (2b) Keep
+writing per keystroke and accept it.
+
+**Why:** (1a) is actively dangerous — `REPLACE` on a conflicting unique index *deletes* the
+existing row and inserts a new one, which with `ON DELETE CASCADE` on `tag_instances` would
+take every instance of that tag with it. A tag's entire history, silently, because someone
+double-tapped. (1b) is the right shape for genuine failures and remains open as the rest of F3,
+but it's the wrong answer for this particular case, where there's nothing to report. (1c) is
+the textbook fix and would also close the race properly rather than resolving after the fact;
+it's more machinery than this earns, and the resolve path reaches the same end state. (2a)
+misses the case where the sheet is closed with the keyboard still up. (2b) is the status quo,
+and the recomposition-during-typing risk is what argues against it.
+
+**Still open in F3:** there is no general error path. Every repository call remains a bare
+`viewModelScope.launch { … }` with no `catch` and no error field on `CalendarUiState`, so a
+genuine failure (disk full, corrupted database) still crashes. That needs a UX decision about
+what the user should see, which is why it isn't bundled here.
+
+**Not verified on a device** — see `UI_UX.md`'s manual-check list.

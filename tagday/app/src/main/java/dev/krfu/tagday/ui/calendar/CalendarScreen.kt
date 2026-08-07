@@ -26,14 +26,15 @@ fun CalendarScreen(
     // rememberSaveable, not remember: rotating with the sheet open used to close it (BACKLOG
     // F10). A tag id is saveable as-is.
     var selectedGroupKey by rememberSaveable { mutableStateOf<Long?>(null) }
-    // True only for a tag just created via createTagForEditing, opened before it has any
-    // instance — lets selectedGroup fall back to a synthetic empty group below instead of
-    // null. Any other selection (tapping a real capsule) leaves this false, so removing an
-    // existing group's last instance still auto-dismisses the sheet as before.
-    var selectedGroupIsFreshTag by rememberSaveable { mutableStateOf(false) }
+    // True when the selected tag may legitimately have *no* instances on the focused day —
+    // either just created via createTagForEditing, or an existing Rated/Valued tag opened by
+    // quick-entry with no seed (ADR-034). Lets selectedGroup fall back to a synthetic empty
+    // group below instead of null. Any other selection (tapping a real capsule) leaves this
+    // false, so removing an existing group's last instance still auto-dismisses the sheet.
+    var selectedGroupMayBeEmpty by rememberSaveable { mutableStateOf(false) }
     val dayGroups = (uiState.periodData as? CalendarPeriodData.Day)?.groups.orEmpty()
     val selectedGroup = selectedGroupKey?.let { tagId ->
-        dayGroups.find { it.tagId == tagId } ?: if (selectedGroupIsFreshTag) {
+        dayGroups.find { it.tagId == tagId } ?: if (selectedGroupMayBeEmpty) {
             uiState.allTags.find { it.id == tagId }?.let { tag ->
                 TagDisplayGroup(
                     tagId = tag.id,
@@ -57,7 +58,7 @@ fun CalendarScreen(
     LaunchedEffect(pendingTagEdit) {
         pendingTagEdit?.let { tagId ->
             selectedGroupKey = tagId
-            selectedGroupIsFreshTag = true
+            selectedGroupMayBeEmpty = true
             viewModel.consumePendingTagEdit()
         }
     }
@@ -67,11 +68,14 @@ fun CalendarScreen(
         onNavigateToTags = onNavigateToTags,
         onNavigateToSettings = onNavigateToSettings,
         onAddExistingTag = { tagId -> viewModel.addInstance(tagId) },
+        onAddRatingToExistingTag = { tagId, rating -> viewModel.addRating(tagId, rating) },
+        onAddValuesToExistingTag = { tagId, values -> viewModel.addValues(tagId, values) },
+        onEditExistingTag = { tagId -> viewModel.requestTagEdit(tagId) },
         onCreateTag = { name, type, rating, values -> viewModel.createTagAndAdd(name, type, rating, values) },
         onCreateTagForEditing = { name, type -> viewModel.createTagForEditing(name, type) },
         onGroupClick = { group ->
             selectedGroupKey = group.tagId
-            selectedGroupIsFreshTag = false
+            selectedGroupMayBeEmpty = false
         },
         onGroupQuickRemove = { group -> viewModel.removeGroup(group) },
         onUndoRemoval = { viewModel.undoRemoval() },

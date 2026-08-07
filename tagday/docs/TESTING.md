@@ -16,7 +16,9 @@ based on the pattern that emerged across M1–M4 rather than a plan written up f
   "deliberately not tested" call, per ADR-024.
 - **Pure, non-Compose utility logic**: date-range/stepping math (`CalendarDateRanges`),
   text parsing (`ParsedTagInput`), heatmap shading buckets (`alphaForCount`), period
-  labels (`CalendarPeriodLabels` — the week case straddles months and years, ADR-033).
+  labels (`CalendarPeriodLabels` — the week case straddles months and years, ADR-033),
+  quick-entry dispatch for an existing tag (`QuickEntryAction` — extracted from the Composable
+  specifically so ADR-034's table could be tested here rather than not at all).
   Anything with real boundary conditions (month/year edges, leap years, empty/edge-case
   input) that's cheap to verify directly.
 
