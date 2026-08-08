@@ -19,6 +19,13 @@ based on the pattern that emerged across M1–M4 rather than a plan written up f
   (ADR-021), reorder write-through (ADR-022), zoom clamping and per-zoom time stepping,
   and the rename duplicate-name guard. See § ViewModel tests — this reverses an earlier
   "deliberately not tested" call, per ADR-024.
+- **Composable semantics and callback routing** (`WeekContentTest`, `DayContentTest`,
+  `TagQuickEntryBarTest`, `InstanceListSheetTest`, `MonthContentTest`, `YearContentTest`,
+  `TagsContentTest`): what a screen reader is told, which callback a control fires and with
+  *which* argument. The recurring bug class here is a control that works but reports the wrong
+  thing — a row's action closing over the wrong tag, a heatmap cell whose count only ever
+  existed as background alpha (F14), a star row that read out "1 stars, 2 stars…" and never the
+  actual rating (F16). See § Compose tests for the mechanics and the sharp edges.
 - **Pure, non-Compose utility logic**: date-range/stepping math (`CalendarDateRanges`),
   text parsing (`ParsedTagInput`), heatmap shading buckets (`alphaForCount`), period
   labels (`CalendarPeriodLabels` — the week case straddles months and years, ADR-033),
@@ -114,16 +121,20 @@ fun step_month_acrossYearBoundary()
   `@Preview` composables (one "populated" + one "empty" per screen, following
   `CONVENTIONS.md`) remain the stand-in for anything not yet covered. The `Screen`/`Content`
   split (ADR-005) exists precisely so the content composables can be driven by a UI test.
-- **Composable-internal state logic**, most notably `ValuedInstanceList`'s drag-reorder
-  bookkeeping (swap thresholds, local-vs-persisted order, edge auto-scroll — ADR-022).
-  It's real logic with real edge cases, but it's expressed in `remember`ed state inside a
-  composable, so testing it needs the Compose test infrastructure above. Extracting it
-  into a plain testable state holder is the obvious move if it grows any further.
-- **Anything touching real Android framework APIs directly** (e.g. `ColorPickerDialog`'s
-  `android.graphics.Color.colorToHSV`/`HSVToColor`): local JVM unit tests can't call real
-  `android.*` classes without Robolectric, which isn't configured. Correctness there
-  relies on reading the platform docs/source carefully and Preview-level inspection, not
-  a unit test — see ADR-011.
+- **The drag gesture itself** in `ReorderableInstanceList` (swap thresholds, local-vs-persisted
+  order, edge auto-scroll — ADR-022): it depends on real pointer arbitration between
+  `draggable` and the list's own scroll, which took five attempts to get right on hardware and
+  isn't something a JVM simulation should be trusted to judge. What *is* covered is the same
+  list's discrete move-up/move-down accessibility actions, which run the same `move`/`commit`
+  path the drop does — so the ordering bookkeeping and the `sortOrder` renumbering are tested
+  even though the gesture that usually drives them isn't (`InstanceListSheetTest`).
+- **Anything inside an `AlertDialog`** — the rename dialog, the color picker, the delete
+  confirmation, the period row's date picker. Not a judgement call: they can't run here at all,
+  see § `AlertDialog` doesn't work below. `TagsContentTest` drives `TagsContent` in its
+  `pendingDelete == null` state only for this reason. `ColorPickerDialog`'s
+  `android.graphics.Color.colorToHSV`/`HSVToColor` would be reachable under Robolectric — the
+  old claim here that `android.*` needs a device was wrong even before Robolectric was
+  configured — but the dialog wrapping them is not, so ADR-011 stays Preview-verified.
 - **Gesture code** (`CalendarContent`'s drag detection): same reasoning as Composables —
   feel/timing/threshold correctness can only really be judged on a device.
 
@@ -170,7 +181,25 @@ measurements. Where a test must hit a specific region, use `performTouchInput { 
 with an offset that stays correct regardless of text width (a leading edge, say), and don't
 write assertions that depend on where text ends.
 
-The direct casualty is **ADR-026/027**, whose entire subject is touch-target geometry: the ✕'s
+**Geometry, unlike text, is real.** Anything laid out by weights, aspect ratios or fixed dp
+measures correctly — so a bounds assertion is fair game as long as no text width feeds into it.
+`MonthContentTest.theWeekdayHeaderSitsOverTheColumnItLabels` uses this: it asserts the "W"
+header's centre falls inside 1 July's cell, which is the one way to catch a weekday header
+that disagrees with the grid under it. Only *text* metrics are fictional here.
+
+**`AlertDialog` doesn't work — and fails destructively.** A Compose test that composes an
+`AlertDialog` (or anything wrapping one) does not fail with an assertion: it spins, pins a CPU
+core, and the Gradle test JVM eventually dies with `Process 'Gradle Test Executor N' finished
+with non-zero exit value 1` after ~75s, reporting the test as *skipped*. Both compose-rule
+factories behave the same way, and it happens at `setContent` — before any assertion. This
+rules out `RenameTagDialog`, `ColorPickerDialog`, `TagsContent`'s delete confirmation and
+`PeriodNavigationRow`'s date picker, and it's why the ViewModel-side coverage of those flows
+(`TagsViewModelTest.renameTag_*`, `requestDelete`/`confirmDelete`) matters more than usual.
+`ModalBottomSheet` is fine — it renders in the same window rather than its own — which is why
+the instance sheet *is* covered. If you try a dialog anyway, kill the test JVM rather than
+waiting it out.
+
+The other direct casualty is **ADR-026/027**, whose entire subject is touch-target geometry: the ✕'s
 48dp minimum-target inflation reaching back over the tag name so that tapping the name deleted
 the tag. That cannot be verified here and stays a device check.
 
@@ -185,10 +214,13 @@ ever wanted again, and the `androidTestImplementation` dependencies are kept for
 No automated measurement: Kover 0.9.1 produces an empty report against AGP 9.3.1 and registers
 no variant tasks, which looks like a straight incompatibility. Worth retrying when Kover
 supports AGP 9. Until then, coverage is judged structurally — see § What gets a unit test above and
-`BACKLOG.md` F20 for the known gaps. The two largest are now closed: SQL is covered by
-`TagDaoTest`/`TagInstanceDaoTest`, and Compose by `WeekContentTest`, `DayContentTest` and
-`TagQuickEntryBarTest`. The instance sheet is covered too — `ModalBottomSheet` turns out to work
-fine under Robolectric. What remains is everything in the device list above.
+`BACKLOG.md` F20 for the known gaps. 197 tests across 21 classes as of 2026-08-08.
+
+Every zoom level now has a test: Day (`DayContentTest`), Week (`WeekContentTest`), Month and
+Year (`MonthContentTest`, `YearContentTest`), plus the ViewModel's per-zoom query ranges. So
+does every screen except Settings, which is an empty placeholder. What remains untested is
+what can't run here rather than what hasn't been got to: the device list above, and everything
+behind an `AlertDialog`.
 
 ## Running them
 

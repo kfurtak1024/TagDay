@@ -105,11 +105,11 @@ Instance display order is owned by `TagInstanceDao`'s `ORDER BY sortOrder`, not 
 consumer sorting for itself (ADR-023) — that's what makes a manual reorder show up in the
 day capsule as well as in the sheet. Day capsules are ~32dp tall and their ✕ opts out of
 Compose's minimum-touch-target inflation, which otherwise overlapped the capsule text
-and removed Simple tags on a body tap (ADR-026, ADR-027). Unit tests cover the
-repositories, both ViewModels (ADR-024) and the pure date/parsing utilities; Composables
-and gesture code are the
-deliberate gap, since instrumented tests need a device this environment doesn't have. See
-`docs/TESTING.md`.
+and removed Simple tags on a body tap (ADR-026, ADR-027). Tests cover the DAOs' real SQL, the
+repositories, both ViewModels (ADR-024), the pure date/parsing utilities and the Composables —
+the last of these on the JVM under Robolectric rather than on a device (ADR-040). The gaps are
+what can't run there: gesture feel and touch-target geometry, and anything inside an
+`AlertDialog`, which hangs the test JVM outright. See `docs/TESTING.md`.
 
 **Tag names are constrained** to lowercase letters with single `-` separators, starting and
 ending with a letter (`data/model/TagName`, ADR-028). Both naming entry points — the

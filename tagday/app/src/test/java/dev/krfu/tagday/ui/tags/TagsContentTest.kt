@@ -1,0 +1,137 @@
+package dev.krfu.tagday.ui.tags
+
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import dev.krfu.tagday.R
+import dev.krfu.tagday.data.local.entity.Tag
+import dev.krfu.tagday.data.local.entity.TagType
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+
+/**
+ * The tag-management list: its two different empty states, and the three per-row actions, each
+ * of which has to carry the tag it belongs to. The rename/delete/recolor controls are icons with
+ * no visible text, so their content descriptions are the only thing naming them — for a screen
+ * reader *and* for this test.
+ *
+ * The delete-confirmation dialog is **not** covered: `AlertDialog` doesn't work under Robolectric
+ * here (see `TESTING.md` § Compose tests), so this drives `TagsContent` in its
+ * `pendingDelete == null` state only. The ViewModel side of that flow is covered by
+ * `TagsViewModelTest`.
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = "w411dp-h891dp")
+class TagsContentTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    private val context = RuntimeEnvironment.getApplication()
+
+    private val walk = Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0)
+    private val movie = Tag(id = 2, name = "movie", type = TagType.VALUED, color = 0xFF4FC3F7.toInt(), createdAt = 0)
+
+    private var query: String? = null
+    private var renamed: Tag? = null
+    private var recolored: Tag? = null
+    private var deleteRequested: Tag? = null
+    private var navigatedBack = false
+
+    private fun setTags(tags: List<Tag> = listOf(walk, movie), currentQuery: String = "") {
+        compose.setContent {
+            TagsContent(
+                uiState = TagsUiState(isLoading = false, query = currentQuery, tags = tags),
+                onNavigateBack = { navigatedBack = true },
+                onQueryChange = { query = it },
+                onRenameClick = { renamed = it },
+                onColorClick = { recolored = it },
+                onDeleteClick = { deleteRequested = it },
+                onConfirmDelete = {},
+                onCancelDelete = {},
+            )
+        }
+    }
+
+    @Test
+    fun withNoTagsAtAll_saysThereAreNoneYet() {
+        setTags(tags = emptyList())
+
+        compose.onNodeWithText(context.getString(R.string.tags_empty_message)).assertExists()
+    }
+
+    @Test
+    fun withAQueryThatMatchesNothing_namesTheQueryRatherThanClaimingThereAreNoTags() {
+        // Two distinct states behind one empty list: "you have no tags" and "none match this".
+        // Collapsing them would tell someone mid-search that their tags are gone.
+        setTags(tags = emptyList(), currentQuery = "zzz")
+
+        compose.onNodeWithText(context.getString(R.string.tags_empty_filtered_message, "zzz")).assertExists()
+        compose.onNodeWithText(context.getString(R.string.tags_empty_message)).assertDoesNotExist()
+    }
+
+    @Test
+    fun eachRowNamesTheTagAndItsType() {
+        // Type is fixed at creation and can't be changed (CLAUDE.md § Hard rules), so the row
+        // stating it is the only place the distinction is visible on this screen.
+        setTags()
+
+        compose.onNodeWithText("walk").assertExists()
+        compose.onNodeWithText("movie").assertExists()
+        compose.onNodeWithText(context.getString(R.string.tag_type_simple)).assertExists()
+        compose.onNodeWithText(context.getString(R.string.tag_type_valued)).assertExists()
+    }
+
+    @Test
+    fun theSearchFieldReportsWhatWasTypedVerbatim() {
+        // Deliberately *not* sanitized the way the naming fields are (ADR-028): this is a
+        // substring filter, and normalizing it would stop "Fast Fo" ever matching anything.
+        setTags()
+
+        compose.onNodeWithText(context.getString(R.string.tags_search_placeholder)).performTextInput("Mov")
+        compose.waitForIdle()
+
+        assertEquals("Mov", query)
+    }
+
+    @Test
+    fun eachRowsActionsCarryTheirOwnTag() {
+        // The list renders one identical-looking set of icons per row, so the risk here is a
+        // callback closing over the wrong tag — asserted against the *second* row for that
+        // reason.
+        setTags()
+
+        compose.onNodeWithContentDescription(
+            context.getString(R.string.tags_rename_content_description, "movie"),
+        ).performClick()
+        compose.onNodeWithContentDescription(
+            context.getString(R.string.tags_delete_content_description, "movie"),
+        ).performClick()
+        compose.onNodeWithContentDescription(
+            context.getString(R.string.tags_color_content_description, "movie"),
+        ).performClick()
+        compose.waitForIdle()
+
+        assertEquals(movie, renamed)
+        assertEquals(movie, deleteRequested)
+        assertEquals(movie, recolored)
+    }
+
+    @Test
+    fun theBackButtonNavigatesBack() {
+        setTags()
+
+        compose.onNodeWithContentDescription(
+            context.getString(R.string.nav_back_content_description),
+        ).performClick()
+        compose.waitForIdle()
+
+        assertEquals(true, navigatedBack)
+    }
+}

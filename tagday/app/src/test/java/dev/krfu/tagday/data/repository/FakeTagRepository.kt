@@ -19,6 +19,12 @@ class FakeTagRepository(initialTags: List<Tag> = emptyList()) : TagRepository {
     var taggedDayCountResult: Int = 0
     val deletedTags = mutableListOf<Tag>()
 
+    /**
+     * Makes [createTag] return null — the real impl's "insert was rejected and the name then
+     * couldn't be found either" case, i.e. the tag was deleted in between (BACKLOG F3).
+     */
+    var createTagFails: Boolean = false
+
     override fun observeAll(): Flow<List<Tag>> = tags
 
     override fun observeFiltered(query: String): Flow<List<Tag>> =
@@ -26,6 +32,7 @@ class FakeTagRepository(initialTags: List<Tag> = emptyList()) : TagRepository {
 
     /** Mirrors the real impl's collision behaviour: an existing name resolves to that tag. */
     override suspend fun createTag(name: String, color: Int, type: TagType): Long? {
+        if (createTagFails) return null
         tags.value.find { it.name.equals(name, ignoreCase = true) }?.let { return it.id }
         val id = (tags.value.maxOfOrNull { it.id } ?: 0L) + 1
         tags.value += Tag(id = id, name = name, type = type, color = color, createdAt = id)

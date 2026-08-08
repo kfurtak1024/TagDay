@@ -89,6 +89,22 @@ class TagsViewModelTest {
     }
 
     @Test
+    fun updateColor_changesThatTagOnly() = runTest {
+        val (viewModel, repository) = viewModelWith()
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.updateColor(walk, 0xFF123456.toInt())
+
+        assertEquals(0xFF123456.toInt(), repository.tags.value.single { it.id == walk.id }.color)
+        assertEquals(movie.color, repository.tags.value.single { it.id == movie.id }.color)
+        // And the list the screen renders reflects it, rather than only the repository.
+        assertEquals(
+            0xFF123456.toInt(),
+            viewModel.uiState.value.tags.single { it.id == walk.id }.color,
+        )
+    }
+
+    @Test
     fun requestDelete_exposesTheInstanceCountForTheConfirmationDialog() = runTest {
         val (viewModel, repository) = viewModelWith()
         repository.taggedDayCountResult = 7

@@ -70,8 +70,15 @@ class CalendarViewModelTest {
         )
     }
 
+    /** An instance on a specific date, for the range-based (Week/Month/Year) zoom levels. */
+    private fun instanceOn(id: Long, tagId: Long, date: LocalDate) =
+        instance(id, tagId).copy(date = date.toEpochDay().toInt())
+
     private fun CalendarUiState.dayGroups(): List<TagDisplayGroup> =
         (periodData as CalendarPeriodData.Day).groups
+
+    private fun CalendarUiState.heatmapCounts(): Map<Int, Int> =
+        (periodData as CalendarPeriodData.Heatmap).countsByDate
 
     // --- navigation -------------------------------------------------------------------
 
@@ -258,6 +265,21 @@ class CalendarViewModelTest {
     }
 
     @Test
+    fun jumpToMonth_setsBothDateAndZoom() = runTest {
+        // Year zoom's tiles jump *out* to Month rather than straight to Day, since a tile is
+        // a whole month and picking a day out of one at that density isn't possible (ADR-016).
+        val (viewModel, _, _) = viewModelWith()
+        keepSubscribed(viewModel.uiState)
+        viewModel.setZoom(ZoomLevel.YEAR)
+
+        val target = today.minusMonths(5).withDayOfMonth(1)
+        viewModel.jumpToMonth(target)
+
+        assertEquals(ZoomLevel.MONTH, viewModel.uiState.value.zoomLevel)
+        assertEquals(target, viewModel.uiState.value.focusedDate)
+    }
+
+    @Test
     fun jumpToToday_keepsZoomLevel() = runTest {
         val (viewModel, _, _) = viewModelWith()
         keepSubscribed(viewModel.uiState)
@@ -268,6 +290,22 @@ class CalendarViewModelTest {
 
         assertEquals(today, viewModel.uiState.value.focusedDate)
         assertEquals(ZoomLevel.WEEK, viewModel.uiState.value.zoomLevel)
+    }
+
+    @Test
+    fun jumpToToday_readsTheClockRatherThanTheSystemDate() = runTest {
+        // The whole point of injecting a Clock (BACKLOG F6): after a midnight rollover the
+        // button has to land on the *new* today, which only holds if it re-reads the clock
+        // instead of a date captured when the ViewModel was built.
+        val clock = MutableClock(Instant.parse("2026-08-03T23:59:50Z"))
+        val (viewModel, _, _) = viewModelWith(clock = clock)
+        keepSubscribed(viewModel.uiState)
+        viewModel.stepTime(5)
+
+        clock.instant = Instant.parse("2026-08-04T00:00:01Z")
+        viewModel.jumpToToday()
+
+        assertEquals(LocalDate.of(2026, 8, 4), viewModel.uiState.value.focusedDate)
     }
 
     // --- day-zoom data ----------------------------------------------------------------
@@ -358,6 +396,110 @@ class CalendarViewModelTest {
         assertEquals(4, added.rating)
     }
 
+    @Test
+    fun createTagAndAdd_whenTheTagCannotBeCreated_addsNoInstance() = runTest {
+        // createTag returns null only when the name failed to insert *and* then failed to be
+        // found — it was deleted in between. There's nothing to attach an instance to, so the
+        // input is dropped rather than an instance being written against a guessed id
+        // (BACKLOG F3). Without the early return this would have thrown or orphaned a row.
+        val (viewModel, tagRepository, instanceRepository) = viewModelWith(tags = emptyList())
+        tagRepository.createTagFails = true
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.createTagAndAdd("film", TagType.VALUED, values = listOf("dune"))
+
+        assertTrue(instanceRepository.instances.value.isEmpty())
+    }
+
+    @Test
+    fun updateInstance_writesTheEditThrough() = runTest {
+        // The sheet's value field and star row both edit an existing instance in place.
+        val existing = instance(1, movie.id, value = "dune")
+        val (viewModel, _, instanceRepository) = viewModelWith(listOf(existing))
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.updateInstance(existing.copy(value = "tenet"))
+
+        assertEquals(listOf("tenet"), instanceRepository.instances.value.map { it.value })
+        assertEquals(
+            listOf("tenet"),
+            viewModel.uiState.value.dayGroups().single().instances.map { it.value },
+        )
+    }
+
+    // --- heatmap zooms (Month/Year) ---------------------------------------------------
+
+    @Test
+    fun heatmap_withNoTagPicked_isEmptyRatherThanEveryTagsCounts() = runTest {
+        // Month/Year show one tag at a time, and until one is picked the content is a
+        // "pick a tag" message — so the query isn't run at all rather than run for nothing.
+        val (viewModel, _, _) = viewModelWith(listOf(instance(1, walk.id)))
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.setZoom(ZoomLevel.MONTH)
+
+        assertEquals(emptyMap<Int, Int>(), viewModel.uiState.value.heatmapCounts())
+    }
+
+    @Test
+    fun heatmap_monthZoom_countsTheSelectedTagWithinThatMonthOnly() = runTest {
+        // A fixed clock so the month boundaries are the same every run — the two neighbouring
+        // days are the off-by-one this range is easy to get wrong at.
+        val clock = MutableClock(Instant.parse("2026-07-15T12:00:00Z"))
+        val july = LocalDate.of(2026, 7, 15)
+        val (viewModel, _, _) = viewModelWith(
+            instances = listOf(
+                instanceOn(1, walk.id, july.withDayOfMonth(1)),
+                instanceOn(2, walk.id, july),
+                instanceOn(3, walk.id, july),
+                instanceOn(4, walk.id, july.withDayOfMonth(31)),
+                instanceOn(5, walk.id, july.minusDays(15)), // 30 June — just outside
+                instanceOn(6, walk.id, july.plusMonths(1).withDayOfMonth(1)), // 1 August
+                instanceOn(7, movie.id, july), // right day, wrong tag
+            ),
+            clock = clock,
+        )
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.selectHeatmapTag(walk.id)
+        viewModel.setZoom(ZoomLevel.MONTH)
+
+        assertEquals(
+            mapOf(
+                july.withDayOfMonth(1).toEpochDay().toInt() to 1,
+                july.toEpochDay().toInt() to 2,
+                july.withDayOfMonth(31).toEpochDay().toInt() to 1,
+            ),
+            viewModel.uiState.value.heatmapCounts(),
+        )
+    }
+
+    @Test
+    fun heatmap_yearZoom_spansTheWholeYearAndStopsAtItsEdges() = runTest {
+        val clock = MutableClock(Instant.parse("2026-07-15T12:00:00Z"))
+        val (viewModel, _, _) = viewModelWith(
+            instances = listOf(
+                instanceOn(1, walk.id, LocalDate.of(2026, 1, 1)),
+                instanceOn(2, walk.id, LocalDate.of(2026, 12, 31)),
+                instanceOn(3, walk.id, LocalDate.of(2025, 12, 31)),
+                instanceOn(4, walk.id, LocalDate.of(2027, 1, 1)),
+            ),
+            clock = clock,
+        )
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.selectHeatmapTag(walk.id)
+        viewModel.setZoom(ZoomLevel.YEAR)
+
+        assertEquals(
+            setOf(
+                LocalDate.of(2026, 1, 1).toEpochDay().toInt(),
+                LocalDate.of(2026, 12, 31).toEpochDay().toInt(),
+            ),
+            viewModel.uiState.value.heatmapCounts().keys,
+        )
+    }
+
     // --- fresh tag opened for editing (ADR-021, ADR-031) ------------------------------
 
     @Test
@@ -375,6 +517,20 @@ class CalendarViewModelTest {
             assertTrue(instanceRepository.instances.value.isEmpty())
             assertEquals(created.id, viewModel.pendingTagEdit.value)
         }
+    }
+
+    @Test
+    fun requestTagEdit_opensTheSheetForAnExistingTagWithoutCreatingAnything() = runTest {
+        // Quick-entry's bare-name case for a Rated/Valued tag that already exists — the
+        // counterpart to createTagForEditing, which must not create a second tag (ADR-034).
+        val (viewModel, tagRepository, instanceRepository) = viewModelWith()
+        keepSubscribed(viewModel.uiState)
+
+        viewModel.requestTagEdit(movie.id)
+
+        assertEquals(movie.id, viewModel.pendingTagEdit.value)
+        assertEquals(2, tagRepository.tags.value.size)
+        assertTrue(instanceRepository.instances.value.isEmpty())
     }
 
     @Test

@@ -273,9 +273,18 @@ re-raised as though it had been missed.
   in-memory SQLite, each verified against a deliberate SQL mutation. Compose coverage now also spans `DayContentTest` and
   `TagQuickEntryBarTest` (ADR-034's routing end to end). `InstanceListSheetTest` covers the three per-type
   panels (`ModalBottomSheet` works fine under Robolectric), and Turbine has replaced the
-  hand-rolled `collectInto`. **Still open**: the 19 manual checks in `UI_UX.md`. Note ADR-026/027's capsule touch-target
-  geometry is **not** JVM-testable — Robolectric has no font metrics, so text measures ~5px wide
-  — and stays a device check.*
+  hand-rolled `collectInto`. A later pass (2026-08-08) closed the remaining structural gaps:
+  `MonthContentTest`/`YearContentTest` cover the two heatmap zooms, `TagsContentTest` the tag
+  list, and the reorder list's move-up/move-down accessibility actions now cover ADR-022's
+  ordering bookkeeping and `sortOrder` renumbering (the drag gesture stays a device check). The
+  ViewModels' remaining branches — per-zoom query ranges, `jumpToMonth`, `requestTagEdit`,
+  `updateInstance`, `updateColor`, the F3 "tag vanished mid-create" path — are covered too.
+  197 tests, each new one verified against a deliberate mutation. **Still open**: the 19 manual
+  checks in `UI_UX.md`. Two things are **not** JVM-testable here and stay device checks:
+  ADR-026/027's capsule touch-target geometry (Robolectric has no font metrics, so text measures
+  ~5px wide), and anything inside an `AlertDialog` — the rename dialog, color picker, delete
+  confirmation and date picker all hang the test JVM outright rather than failing. See
+  `TESTING.md` § Compose tests.*
 
   Original finding: `app/src/androidTest` isn't present, though
   the dependencies are configured in `app/build.gradle.kts`. `TESTING.md` documents this as a
