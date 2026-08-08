@@ -175,13 +175,26 @@ interface TagInstanceDao {
 
 | Version | Change |
 |---|---|
-| 1 | Original (pre-M1-completion) shape, with `type` on `TagInstance`. |
-| 2 | `type` moved to `Tag`, dropped from `TagInstance` — ADR-007. |
-| 3 | `TagInstance.sortOrder` added — ADR-021. |
+| 1 | Current shape: `type` on `Tag` (ADR-007), `TagInstance.sortOrder` (ADR-021). |
 
-Every one of those bumps relied on `fallbackToDestructiveMigration(dropAllTables = true)`
-in `di/DatabaseModule.kt` rather than a written `Migration`, which was defensible while
-the only data at stake was local development data.
+**The numbering was reset to 1 on 2026-08-08**, and this table starts over with it. It
+previously ran to 3, recording two pre-release bumps — `type` moving from `TagInstance` to
+`Tag`, then `sortOrder` being added — as if they were history. They aren't: nothing has
+shipped, so no install has ever *been* on a version this app would need to migrate from, and
+every bump was absorbed by `fallbackToDestructiveMigration(dropAllTables = true)` in
+`di/DatabaseModule.kt` rather than by a written `Migration`. Those numbers described the
+development of the schema, not the versions any user's database was on.
+
+Version 1 is therefore the shape the app is intended to **launch** with, and the "before" side
+the first real `Migration` will be written against. It's not frozen yet — destructive fallback
+is still in place and the schema can still change freely while it is (see the caveat under
+§ Schema export about bumping vs. not bumping). What changes is the meaning of a bump: past 1
+means the schema moved after the point it was meant to settle, so treat it as a decision worth
+recording here rather than routine.
+
+The old versions 2 and 3 are gone along with the numbering; `app/schemas/…/3.json` was deleted
+and `1.json` regenerated. Nothing is lost — the deleted file described exactly the same tables
+`1.json` now does.
 
 ### Schema export
 
@@ -201,23 +214,26 @@ rather than when migrations are actually needed.
 Two things this deliberately does *not* mean:
 
 - **It isn't a claim the schema is final.** While the database still uses destructive
-  fallback, the export is a recording, not a contract — keep changing entities freely. Each
-  `version` bump simply gains its own JSON file. (Changing entities *without* bumping
-  `version` is a different matter: Room's identity-hash check fails at open time with "you've
-  changed schema but forgot to update the version number", which destructive fallback does
-  **not** catch. During development that means bump the version or reinstall.)
+  fallback, the export is a recording, not a contract — keep changing entities freely.
+  (Changing entities *without* bumping `version` is a different matter: Room's identity-hash
+  check fails at open time with "you've changed schema but forgot to update the version
+  number", which destructive fallback does **not** catch.) Since the reset, the way out of
+  that is **reinstall or clear the app's data**, not another bump: 1 is meant to stay 1 until
+  release, and `1.json` is simply regenerated in place each time the entities change.
 - **It doesn't oblige a migration yet.** Migrations become mandatory only when
   `fallbackToDestructiveMigration` comes out.
 
-Versions 1 and 2 predate the export and have no JSON — they're unrecoverable. That only
-matters for a device still sitting on one of them, which in practice doesn't exist; migrations
-written from here on start at 3.
+There is exactly one exported schema, `1.json`, and it matches the current entities. Migrations
+written from here on start at 1 — see § Schema history above for why the earlier 2 and 3 were
+dropped rather than kept.
 
-> **The remaining data-loss risk.** Destructive fallback still means the *next* schema change
-> silently wipes every tag and instance on any device that has the app installed — including
-> the developer's own day-to-day install, which by now holds real diary data. The export above
-> makes the fix *possible*; it doesn't apply it. Writing real `Migration`s must still happen
-> before the next schema change, not after. Note also that Android's auto-backup is not a
+> **The remaining data-loss risk.** Destructive fallback still means a schema change silently
+> wipes every tag and instance on any device that has the app installed. Right now that costs
+> nothing — the app isn't installed anywhere but development, which is what made the version
+> reset above free — so the risk is entirely about *when that stops being true*. The moment
+> there's an install whose data matters (the developer's own day-to-day one included), the
+> next schema change destroys it. The export above makes the fix *possible*; it doesn't apply
+> it. Writing real `Migration`s must still happen before the schema changes past 1, not after. Note also that Android's auto-backup is not a
 > substitute: the manifest has `allowBackup="true"` with the template's empty rules, so a
 > restore can bring back a database file from an older schema version and hit exactly the same
 > destructive path — see ADR-032's open item, and F2 in `BACKLOG.md` for why closing that is

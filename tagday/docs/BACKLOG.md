@@ -29,9 +29,10 @@ re-raised as though it had been missed.
 ## Tier 1 — data loss & crashes
 
 - [x] **F1 — `exportSchema = false` is what makes the destructive-migration risk hard to fix.**
-  *Done: `exportSchema = true` via the Room Gradle plugin, `app/schemas/…/3.json` committed.
+  *Done: `exportSchema = true` via the Room Gradle plugin, with the schema JSON committed.
   No migration written and none needed yet — see `DATA_MODEL.md` § Schema export for what
-  the recording does and doesn't commit to.*
+  the recording does and doesn't commit to. Note the version has since been **reset to 1**
+  (ADR-041), so the committed file is `1.json`, not the `3.json` this was closed with.*
   `TagDayDatabase.kt:10-11` is at `version = 3` with `exportSchema = false`, and
   `DatabaseModule.kt:22` uses `fallbackToDestructiveMigration(dropAllTables = true)`.
   `CLAUDE.md` already flags the wipe; what it doesn't say is that there's **no exported schema

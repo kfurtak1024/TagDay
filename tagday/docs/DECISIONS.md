@@ -730,6 +730,8 @@ Persisting a manual order requires a new `TagInstance.sortOrder: Long = 0` colum
 (`TagDayDatabase` bumped to version 3, relying on the existing
 `fallbackToDestructiveMigration(dropAllTables = true)` in `di/DatabaseModule.kt` rather
 than a real `Migration`, consistent with how version 1→2 was handled pre-release).
+*Version numbers here are historical: ADR-041 later reset the count, and the shape this
+paragraph calls "version 3" is the one now exported as `1.json`.*
 `addInstance` seeds `sortOrder = createdAt` at creation time (same
 `System.currentTimeMillis()` value) — this costs no extra query and keeps
 newly-added values sorting after any manually-reordered ones for free, since a
@@ -1975,3 +1977,47 @@ runner defaults to.
 against AGP 9.3.1 — "No sources", and no per-variant tasks appear. It looks like a plain
 version incompatibility. Worth retrying when Kover supports AGP 9; until then coverage is
 judged structurally in `TESTING.md`.
+
+---
+
+## ADR-041: The Room schema version resets to 1, and 1 is the number the app launches on
+
+**Decision:** `TagDayDatabase.version` goes from 3 back to 1 (2026-08-08).
+`app/schemas/…/3.json` is deleted and `1.json` regenerated; `DATA_MODEL.md`'s version table
+starts over with a single row. The intent is that 1 stays 1 until the first release, at which
+point it becomes the "before" side every real `Migration` is written against. Nothing else
+changes — `fallbackToDestructiveMigration(dropAllTables = true)` stays for now, so the schema
+itself is still free to move.
+
+**Why:** versions 2 and 3 recorded a history that never happened to anybody. Nothing has
+shipped, so no database has ever *been* on version 1 or 2 and needed migrating off it; both
+bumps were absorbed destructively during development. Keeping the count meant launching on
+version 3 and carrying two migration-shaped gaps that can never be exercised — and, worse,
+inviting the reading that 1 → 3 is a migration path someone might one day have to support.
+Resetting costs nothing precisely because the premise that made the numbering meaningless is
+the same premise that makes discarding it safe.
+
+**What it does *not* mean.** Not a schema freeze: destructive fallback is still in place and
+entities can still change. What changes is what a bump *signals*. Before, a bump was routine
+bookkeeping during development; from here it means the schema moved after the point it was
+meant to settle, so it belongs in `DATA_MODEL.md`'s table with a reason. During development
+the way to handle a changed schema is to reinstall or clear the app's data — Room's
+identity-hash check fails at open time on changed entities and destructive fallback does not
+catch that — rather than to bump past 1 and quietly restart the count.
+
+**The one real risk, and why it's acceptable today:** 3 → 1 is a *downgrade* for any existing
+install, and Room treats a downgrade with no migration path far less gently than an upgrade.
+It's moot here only because the app is installed nowhere but development, where wiping is
+free. That is exactly the condition that stops holding at first release — which is the whole
+point of pinning 1 now rather than later. See `DATA_MODEL.md` § Schema history & migrations.
+
+**Alternatives considered:** (1) Leave it at 3 and launch on 3. (2) Reset to 1 *and* drop
+`fallbackToDestructiveMigration` at the same time, freezing the schema now. (3) Reset to 1 and
+also write the first `Migration` scaffolding.
+
+**Why not those:** (1) is harmless mechanically and was the status quo, but it permanently
+misrepresents the schema's history in the one file — the exported JSON — whose entire job is to
+be an accurate record. (2) is the right end state and the wrong time: the app is mid-development
+and the schema demonstrably still moves (ADR-028 added `sortOrder` recently enough). Freezing
+now would force a real migration for changes that should still be free. (3) has nothing to
+migrate *from* yet; a `Migration(1, 2)` written before version 2 exists is speculation.
