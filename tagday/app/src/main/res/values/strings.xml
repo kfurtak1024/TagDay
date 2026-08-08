@@ -32,6 +32,12 @@
     <string name="tags_color_dialog_cancel">Cancel</string>
 
     <string name="tags_delete_dialog_title">Delete \"%1$s\"?</string>
+    <!--
+      Zero is a reachable count, not a degenerate one: quick-entry creates Rated and Valued
+      tags with no instance at all (ADR-031), so a tag can be deleted having never been used.
+      The plurals below would say "from 0 tagged days", warning about a loss that isn't there.
+    -->
+    <string name="tags_delete_dialog_message_unused">This tag isn\'t used on any day yet.</string>
     <plurals name="tags_delete_dialog_message">
         <item quantity="one">This removes it from %1$d tagged day. This can\'t be undone.</item>
         <item quantity="other">This removes it from %1$d tagged days. This can\'t be undone.</item>

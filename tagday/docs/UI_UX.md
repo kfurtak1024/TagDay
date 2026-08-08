@@ -374,17 +374,27 @@ here; creation stays exclusively in the Calendar screen's Day-zoom quick-entry b
   the list and the thumb resizes with it; a short list has no thumb at all.
 - **Color dot** (leading, tappable): opens `ColorPickerDialog` — the fixed palette plus
   a custom hue-slider + saturation/value-square picker (see below). Saving calls
-  `TagsViewModel.updateColor`.
+  `TagsViewModel.updateColor`. The dot draws at 28dp but its tap target is a 48dp box
+  around it, Material's minimum: `Modifier.clickable` does no target inflation of its own,
+  so the target was 28dp — the smallest in the app, and adjacent to the delete button.
+  Sized explicitly rather than via `minimumInteractiveComponentSize()`, which reserves the
+  layout space but leaves the clickable node itself at 28dp.
 - **Rename** (trailing pencil icon): opens `RenameTagDialog`, a text field pre-filled
   with the current name. Save is disabled while blank; a duplicate name (checked
   case-insensitively, excluding the tag being renamed) shows an inline error instead of
   saving. Renaming only changes the display name — existing day associations
-  (keyed by tag id) are unaffected, per `FEATURES.md`.
+  (keyed by tag id) are unaffected, per `FEATURES.md`. `TagsViewModel.renameTag` also
+  refuses a name failing `TagName.isValid` (ADR-028) — unreachable from the dialog, which
+  disables Save for exactly those names, but the rule now holds below the UI rather than
+  only inside the two screens that sanitize as you type.
 - **Delete** (trailing trash icon): fetches the tag's instance count, then shows a
   confirmation dialog ("Delete '<name>'? This removes it from N tagged day(s). This
   can't be undone.") before cascading the delete — per `FEATURES.md`'s resolved
   deletion decision. Unlike Day zoom's capsule "x" (no confirmation, single day
   only), this is a whole-tag, all-days deletion, so it keeps the confirmation step.
+  A count of **zero** gets its own message ("This tag isn't used on any day yet") rather
+  than warning about "0 tagged days" — reachable, since quick-entry creates Rated and
+  Valued tags with no instance at all (ADR-031).
 - **Color picker**: fixed palette row (tap to select immediately) plus a custom
   section — a rainbow-gradient hue slider and a draggable saturation/value square,
   converted to/from the stored ARGB `Int` via `android.graphics.Color.colorToHSV`/
@@ -394,9 +404,17 @@ here; creation stays exclusively in the Calendar screen's Day-zoom quick-entry b
 
 ### Empty states
 
+- **Still loading**: neither message, and no spinner — a blank content area. `TagsUiState.
+  isLoading` was previously written by the ViewModel and read by nobody, so the first frame
+  (empty list, repository not yet emitted) showed "No tags yet" to users who *have* tags,
+  then corrected itself. The load is a local Room query, so a spinner would flash more than
+  the blank it replaces.
 - **No tags in the repository yet**: "No tags yet" centered message.
 - **No tags match the filter**: "No tags match '<query>'" — distinct from the
   fully-empty case so it's clear the repository isn't actually empty.
+
+`CalendarUiState.isLoading` is still unread by `CalendarContent` — same latent flash, not
+addressed here.
 
 ## Settings screen
 

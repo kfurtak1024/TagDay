@@ -395,6 +395,16 @@ findings are all build and process hygiene.
 - [ ] **F35 — `DECISIONS.md` is 1,977 lines with no index.** Forty ADRs and growing, navigable
   only by search. An index at the top, or a split, before it gets worse.
 
+- [ ] **F36 — `CalendarUiState.isLoading` is written but never read.** The same defect fixed on
+  the Tags screen on 2026-08-08 (see `UI_UX.md` § Tags screen → Empty states): `CalendarViewModel`
+  sets `isLoading = false` on every emission, and no composable branches on it, so the first
+  frame renders whatever the initial `CalendarPeriodData.Day(emptyList())` placeholder looks
+  like — at Day zoom that's "Nothing tagged yet — add one below" on a day that may well have
+  tags. Shorter-lived than the Tags case (the placeholder is *a* period's data rather than the
+  wrong empty state) but the same root cause and the same one-line shape of fix. Only
+  `CalendarViewModelTest.everyEmission_pairsTheDataWithItsOwnQuery` reads the field today, to
+  exempt the placeholder emission from its consistency check.
+
 ---
 
 ## Deliberately not listed

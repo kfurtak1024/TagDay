@@ -79,13 +79,30 @@ class TagsViewModelTest {
     }
 
     @Test
-    fun renameTag_recasingItsOwnName_isAllowed() = runTest {
+    fun renameTag_toTheNameItAlreadyHas_isAllowedRatherThanReadingAsADuplicateOfItself() = runTest {
+        // The `excludingId = tag.id` half of the duplicate check. This used to be asserted by
+        // renaming "walk" to "Walk", which ADR-028 has since made an invalid name outright —
+        // so the casing was doing the work of demonstrating a guard that isn't about casing.
         val (viewModel, repository) = viewModelWith()
 
-        val renamed = viewModel.renameResultOf(walk, "Walk")
+        val renamed = viewModel.renameResultOf(walk, "walk")
 
         assertTrue(renamed!!)
-        assertEquals("Walk", repository.tags.value.single { it.id == walk.id }.name)
+        assertEquals("walk", repository.tags.value.single { it.id == walk.id }.name)
+    }
+
+    @Test
+    fun renameTag_aNameBreakingTheNamingRule_isRejectedAndWritesNothing() = runTest {
+        // ADR-028's rule was enforced only by the dialog sanitizing as you type, so nothing
+        // below the UI stopped a malformed name reaching the database. Unreachable through the
+        // dialog (Save is disabled), which is exactly why it needs a test rather than trust.
+        val (viewModel, repository) = viewModelWith()
+
+        listOf("Walk", "fast--food", "walk-", "walk fast", "walk2", "").forEach { bad ->
+            assertFalse("\"$bad\" must not be saved", viewModel.renameResultOf(walk, bad)!!)
+        }
+
+        assertEquals("walk", repository.tags.value.single { it.id == walk.id }.name)
     }
 
     @Test

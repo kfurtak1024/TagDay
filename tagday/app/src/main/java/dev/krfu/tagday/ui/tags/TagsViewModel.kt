@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.krfu.tagday.data.local.entity.Tag
+import dev.krfu.tagday.data.model.TagName
 import dev.krfu.tagday.data.repository.TagRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,7 +75,18 @@ class TagsViewModel @Inject constructor(
     fun renameTag(tag: Tag, newName: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val trimmed = newName.trim()
-            if (tagRepository.nameExists(trimmed, excludingId = tag.id)) {
+            // ADR-028's naming rule was enforced *only* by the two UI call sites that sanitize
+            // as you type (this dialog and the quick-entry bar), so nothing below the UI
+            // stopped a malformed name being written. Checking here makes the rule hold for
+            // any caller rather than for the two that happen to be careful.
+            //
+            // Note what `false` means to the dialog: it renders "a tag with this name already
+            // exists", which would be the wrong explanation for an invalid name. That's
+            // tolerable only because the dialog disables Save unless `TagName.isValid`, so it
+            // can't produce this branch — this is a backstop, not a user-facing path. A second
+            // caller that *can* hit it is the point at which `onResult` should carry a reason
+            // rather than a Boolean.
+            if (!TagName.isValid(trimmed) || tagRepository.nameExists(trimmed, excludingId = tag.id)) {
                 onResult(false)
                 return@launch
             }

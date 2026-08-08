@@ -91,7 +91,19 @@ fun TagsContent(
                     .padding(16.dp),
             )
             val listState = rememberLazyListState()
-            if (uiState.tags.isEmpty()) {
+            if (uiState.isLoading) {
+                // Nothing, deliberately — not a spinner, and above all not the empty state.
+                // `isLoading` was previously set by the ViewModel and read by nobody, so the
+                // first frame (before the repository's first emission, when `tags` is still
+                // the initial empty list) rendered "No tags yet" to anyone who has tags. The
+                // load is a local Room query, so the honest length of this state is a frame or
+                // two; a spinner would flash more distractingly than a blank does.
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                )
+            } else if (uiState.tags.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -149,16 +161,38 @@ private fun TagRow(
         headlineContent = { Text(tag.name) },
         supportingContent = { Text(tag.type.label()) },
         leadingContent = {
+            // The dot stays 28dp; the tappable box around it is 48dp, Material's minimum
+            // target. `Modifier.clickable` applies no minimum-target enforcement of its own
+            // (unlike IconButton, which is why the two trailing icons were already fine), so
+            // this was a 28dp target — the smallest in the app, next to a destructive one.
+            //
+            // Sized explicitly rather than with `minimumInteractiveComponentSize()`: that
+            // modifier reserves the space but leaves the `clickable`/`semantics` node beneath
+            // it still measuring 28dp, so the thing that actually receives the touch doesn't
+            // grow. Here the box that's clickable *is* the box that's 48dp, which is both
+            // correct and the thing a test can assert on.
+            //
+            // Note this is the opposite correction to ADR-026/027, where the capsule ✕ had to
+            // opt *out* of target inflation because it overlapped the tag name. The rule isn't
+            // "bigger is better": it's that the target should match what the control looks
+            // like it covers, and here nothing sits close enough to collide.
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color(tag.color))
                     .clickable(onClick = onColorClick)
                     .semantics {
                         contentDescription = colorContentDescription
                     },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color(tag.color)),
+                )
+            }
         },
         trailingContent = {
             Row {
@@ -190,11 +224,15 @@ private fun DeleteTagConfirmationDialog(
         title = { Text(stringResource(R.string.tags_delete_dialog_title, pending.tag.name)) },
         text = {
             Text(
-                pluralStringResource(
-                    R.plurals.tags_delete_dialog_message,
-                    pending.taggedDayCount,
-                    pending.taggedDayCount,
-                ),
+                if (pending.taggedDayCount == 0) {
+                    stringResource(R.string.tags_delete_dialog_message_unused)
+                } else {
+                    pluralStringResource(
+                        R.plurals.tags_delete_dialog_message,
+                        pending.taggedDayCount,
+                        pending.taggedDayCount,
+                    )
+                },
             )
         },
         confirmButton = {
@@ -221,6 +259,34 @@ private fun TagsContentPreview() {
                     Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0),
                     Tag(id = 2, name = "freediving", type = TagType.RATED, color = 0xFF4FC3F7.toInt(), createdAt = 0),
                 ),
+            ),
+            onNavigateBack = {},
+            onQueryChange = {},
+            onRenameClick = {},
+            onColorClick = {},
+            onDeleteClick = {},
+            onConfirmDelete = {},
+            onCancelDelete = {},
+        )
+    }
+}
+
+/**
+ * The delete confirmation, which no test can reach — `AlertDialog` doesn't run under
+ * Robolectric (`TESTING.md` § Compose tests), so a Preview is the only verification the two
+ * message branches get. This one shows the zero-count branch specifically, since it's the one
+ * that reads as a bug when it's wrong.
+ */
+@Preview(showBackground = true)
+@Composable
+private fun TagsContentDeletingUnusedTagPreview() {
+    TagDayTheme {
+        val unused = Tag(id = 1, name = "movie", type = TagType.VALUED, color = 0xFF4FC3F7.toInt(), createdAt = 0)
+        TagsContent(
+            uiState = TagsUiState(
+                isLoading = false,
+                tags = listOf(unused),
+                pendingDelete = TagsUiState.PendingDelete(unused, taggedDayCount = 0),
             ),
             onNavigateBack = {},
             onQueryChange = {},

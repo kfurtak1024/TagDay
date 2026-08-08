@@ -1,14 +1,19 @@
 package dev.krfu.tagday.ui.tags
 
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import dev.krfu.tagday.R
 import dev.krfu.tagday.data.local.entity.Tag
 import dev.krfu.tagday.data.local.entity.TagType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,10 +49,14 @@ class TagsContentTest {
     private var deleteRequested: Tag? = null
     private var navigatedBack = false
 
-    private fun setTags(tags: List<Tag> = listOf(walk, movie), currentQuery: String = "") {
+    private fun setTags(
+        tags: List<Tag> = listOf(walk, movie),
+        currentQuery: String = "",
+        isLoading: Boolean = false,
+    ) {
         compose.setContent {
             TagsContent(
-                uiState = TagsUiState(isLoading = false, query = currentQuery, tags = tags),
+                uiState = TagsUiState(isLoading = isLoading, query = currentQuery, tags = tags),
                 onNavigateBack = { navigatedBack = true },
                 onQueryChange = { query = it },
                 onRenameClick = { renamed = it },
@@ -74,6 +83,33 @@ class TagsContentTest {
 
         compose.onNodeWithText(context.getString(R.string.tags_empty_filtered_message, "zzz")).assertExists()
         compose.onNodeWithText(context.getString(R.string.tags_empty_message)).assertDoesNotExist()
+    }
+
+    @Test
+    fun whileLoading_showsNeitherEmptyMessage() {
+        // The first frame has `tags` still empty, so without reading `isLoading` this screen
+        // told anyone who *has* tags that they have none, then corrected itself. An empty list
+        // is only news once the repository has actually answered.
+        setTags(tags = emptyList(), isLoading = true)
+
+        compose.onNodeWithText(context.getString(R.string.tags_empty_message)).assertDoesNotExist()
+    }
+
+    @Test
+    fun theColorSwatchMeetsTheMinimumTouchTarget() {
+        // A bare `Modifier.clickable` gets no minimum-target inflation, unlike IconButton — so
+        // this was a 28dp target next to a 48dp delete button. Geometry is trustworthy under
+        // Robolectric even though text metrics aren't, as long as no text width feeds into it.
+        setTags()
+
+        val swatch = compose.onNodeWithContentDescription(
+            context.getString(R.string.tags_color_content_description, "walk"),
+        ).getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "the colour swatch is ${swatch.width} x ${swatch.height}, under the 48dp minimum",
+            swatch.width >= 48.dp && swatch.height >= 48.dp,
+        )
     }
 
     @Test
