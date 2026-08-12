@@ -13,6 +13,7 @@
     <string name="settings_empty_message">Nothing here yet</string>
 
     <string name="tags_search_placeholder">Search tags…</string>
+    <string name="tags_search_clear_content_description">Clear search</string>
     <string name="tags_empty_message">No tags yet</string>
     <string name="tags_empty_filtered_message">No tags match \"%1$s\"</string>
     <string name="tags_rename_content_description">Rename %1$s</string>

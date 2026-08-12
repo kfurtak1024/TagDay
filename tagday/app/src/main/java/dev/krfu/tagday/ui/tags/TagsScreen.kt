@@ -16,6 +16,8 @@ fun TagsScreen(
     viewModel: TagsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Collected separately from uiState, and that's the point — see TagsViewModel.searchText.
+    val searchText by viewModel.searchText.collectAsStateWithLifecycle()
 
     // Ids rather than `Tag` snapshots, so these can be `rememberSaveable` and survive rotation
     // (BACKLOG F10) — and so an open dialog reflects a concurrent edit rather than a stale copy.
@@ -26,6 +28,7 @@ fun TagsScreen(
 
     TagsContent(
         uiState = uiState,
+        searchText = searchText,
         onNavigateBack = onNavigateBack,
         onQueryChange = viewModel::onQueryChange,
         onRenameClick = { tag -> renamingTagId = tag.id },

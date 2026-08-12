@@ -1,11 +1,17 @@
 package dev.krfu.tagday.ui.tags
 
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -39,6 +45,7 @@ class TagsContentTest {
     val compose = createComposeRule()
 
     private val context = RuntimeEnvironment.getApplication()
+    private val clearLabel by lazy { context.getString(R.string.tags_search_clear_content_description) }
 
     private val walk = Tag(id = 1, name = "walk", type = TagType.SIMPLE, color = 0xFF81C784.toInt(), createdAt = 0)
     private val movie = Tag(id = 2, name = "movie", type = TagType.VALUED, color = 0xFF4FC3F7.toInt(), createdAt = 0)
@@ -49,14 +56,19 @@ class TagsContentTest {
     private var deleteRequested: Tag? = null
     private var navigatedBack = false
 
+    /** The one editable node on this screen — see `withAFilterThatMatchesNothing…` for why. */
+    private fun searchField() = compose.onNode(hasSetTextAction())
+
     private fun setTags(
         tags: List<Tag> = listOf(walk, movie),
         currentQuery: String = "",
         isLoading: Boolean = false,
+        searchText: String = currentQuery,
     ) {
         compose.setContent {
             TagsContent(
                 uiState = TagsUiState(isLoading = isLoading, query = currentQuery, tags = tags),
+                searchText = searchText,
                 onNavigateBack = { navigatedBack = true },
                 onQueryChange = { query = it },
                 onRenameClick = { renamed = it },
@@ -130,10 +142,62 @@ class TagsContentTest {
         // substring filter, and normalizing it would stop "Fast Fo" ever matching anything.
         setTags()
 
-        compose.onNodeWithText(context.getString(R.string.tags_search_placeholder)).performTextInput("Mov")
+        searchField().performTextInput("Mov")
         compose.waitForIdle()
 
         assertEquals("Mov", query)
+    }
+
+    // --- search field ------------------------------------------------------------------
+
+    @Test
+    fun theClearButtonIsAbsentWhileTheFieldIsEmpty() {
+        setTags(searchText = "")
+
+        compose.onNodeWithContentDescription(clearLabel).assertDoesNotExist()
+    }
+
+    @Test
+    fun theClearButtonAppearsOnceSomethingIsTyped() {
+        setTags(searchText = "mov")
+
+        compose.onNodeWithContentDescription(clearLabel).assertExists()
+    }
+
+    @Test
+    fun theClearButtonEmptiesTheQuery() {
+        setTags(currentQuery = "mov", tags = listOf(movie))
+
+        compose.onNodeWithContentDescription(clearLabel).performClick()
+        compose.waitForIdle()
+
+        assertEquals("", query)
+    }
+
+    @Test
+    fun theSearchFieldAsksForASearchKey_notANewline() {
+        // Single-line and filtering live, so the IME's action key has nothing to submit — but
+        // it shouldn't offer a newline either. Asserted because it's invisible otherwise.
+        setTags()
+
+        searchField().assert(SemanticsMatcher.expectValue(SemanticsProperties.ImeAction, ImeAction.Search))
+    }
+
+    @Test
+    fun withNoTagsAtAll_thereIsNoSearchFieldToNarrowAnEmptyList() {
+        setTags(tags = emptyList())
+
+        compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+    }
+
+    @Test
+    fun withAFilterThatMatchesNothing_theSearchFieldStays() {
+        // The distinction the previous test depends on: an empty *result* still needs the field,
+        // or there'd be no way to change the query that emptied it.
+        setTags(tags = emptyList(), currentQuery = "zzz")
+
+        // By edit action, not by placeholder: the placeholder is gone once the field has text.
+        searchField().assertExists()
     }
 
     @Test

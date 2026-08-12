@@ -10,6 +10,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -23,6 +24,20 @@ class TagsViewModel @Inject constructor(
 ) : ViewModel() {
     private val query = MutableStateFlow("")
     private val pendingDelete = MutableStateFlow<TagsUiState.PendingDelete?>(null)
+
+    /**
+     * What's in the search field *right now* — deliberately separate from
+     * [TagsUiState.query], and read directly rather than through [uiState].
+     *
+     * The distinction is the same one ADR-036 drew for the calendar. `uiState.query` is the
+     * query the list currently on screen was produced *for*, which is why the "no tags match
+     * X" message uses it: the text and the results have to agree. This one is the text field's
+     * own value, and it must update the instant a key is pressed. Routing it through `uiState`
+     * made every keystroke wait for `flatMapLatest` to re-run a Room query and `combine` to
+     * re-emit before the character appeared, which is how a text field drops or reorders input
+     * under fast typing. Nothing here is derived, so setting it is synchronous.
+     */
+    val searchText: StateFlow<String> = query.asStateFlow()
 
     val uiState: StateFlow<TagsUiState> = combine(
         query,

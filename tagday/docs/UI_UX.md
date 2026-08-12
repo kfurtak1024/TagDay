@@ -366,7 +366,19 @@ here; creation stays exclusively in the Calendar screen's Day-zoom quick-entry b
 ```
 
 - **Filter**: typing filters the list by name (case-insensitive substring), same
-  `TagRepository.observeFiltered` query the Day-zoom quick-entry bar already uses.
+  `TagRepository.observeFiltered` query the Day-zoom quick-entry bar already uses. A trailing
+  ✕ clears it once there's something to clear, and the IME offers a Search key that just
+  dismisses the keyboard — filtering is live, so there's nothing to submit. The field is
+  **hidden entirely when the repository is empty**, since a filter box above "No tags yet"
+  invites narrowing an empty list; it stays when a *filter* matched nothing, or there'd be no
+  way to undo the query that emptied the list.
+
+  The field's text comes from `TagsViewModel.searchText`, **not** `TagsUiState.query`, and the
+  distinction is load-bearing — the same one ADR-036 drew for the calendar. `uiState.query` is
+  the query the list on screen was produced for, which is why the "no tags match X" message
+  uses it: text and results have to agree. `searchText` is the field's own value and must
+  update on the keystroke, not after `flatMapLatest` has re-run a Room query and `combine` has
+  re-emitted — that lap through the database is how a text field drops or reorders fast input.
 - **Scrollbar**: a thumb down the right edge of the list, drawn only while the tag list
   actually overflows the screen. Same `VerticalScrollbar` the instance-list sheet uses
   (`ui/components/`, ADR-030) — for a `LazyColumn` its position is estimated from the

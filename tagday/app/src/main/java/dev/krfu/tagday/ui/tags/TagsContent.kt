@@ -13,8 +13,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
@@ -33,10 +36,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import dev.krfu.tagday.R
@@ -50,6 +55,13 @@ import dev.krfu.tagday.ui.theme.TagDayTheme
 @Composable
 fun TagsContent(
     uiState: TagsUiState,
+    /**
+     * The search field's current text. Separate from [TagsUiState.query] on purpose — see
+     * `TagsViewModel.searchText`. In short: this one is what the user has typed, `uiState.query`
+     * is what the list on screen was filtered by, and only the second belongs in the
+     * "no tags match X" message.
+     */
+    searchText: String,
     onNavigateBack: () -> Unit,
     onQueryChange: (String) -> Unit,
     onRenameClick: (Tag) -> Unit,
@@ -80,16 +92,43 @@ fun TagsContent(
                 .padding(innerPadding)
                 .fillMaxSize(),
         ) {
-            OutlinedTextField(
-                value = uiState.query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                placeholder = { Text(stringResource(R.string.tags_search_placeholder)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            )
+            // Hidden when there's nothing to search: a filter box above "No tags yet" invites
+            // the user to narrow an empty list. Gated on `!isLoading` so it doesn't flicker in
+            // before the repository has answered — the cost is that someone with zero tags sees
+            // it for the frame it takes to find that out, which is the rarer case of the two.
+            val repositoryIsEmpty = !uiState.isLoading && uiState.tags.isEmpty() && uiState.query.isBlank()
+            if (!repositoryIsEmpty) {
+                val focusManager = LocalFocusManager.current
+                OutlinedTextField(
+                    value = searchText,
+                    onValueChange = onQueryChange,
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    placeholder = { Text(stringResource(R.string.tags_search_placeholder)) },
+                    trailingIcon = if (searchText.isEmpty()) {
+                        null
+                    } else {
+                        {
+                            IconButton(onClick = { onQueryChange("") }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = stringResource(
+                                        R.string.tags_search_clear_content_description,
+                                    ),
+                                )
+                            }
+                        }
+                    },
+                    // Filtering is live, so there's nothing for the action to submit — it just
+                    // gets the keyboard out of the way, which is the whole reason to ask for a
+                    // Search key rather than leaving a newline-shaped one on a single-line field.
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                )
+            }
             val listState = rememberLazyListState()
             if (uiState.isLoading) {
                 // Nothing, deliberately — not a spinner, and above all not the empty state.
@@ -260,6 +299,7 @@ private fun TagsContentPreview() {
                     Tag(id = 2, name = "freediving", type = TagType.RATED, color = 0xFF4FC3F7.toInt(), createdAt = 0),
                 ),
             ),
+            searchText = "",
             onNavigateBack = {},
             onQueryChange = {},
             onRenameClick = {},
@@ -288,6 +328,7 @@ private fun TagsContentDeletingUnusedTagPreview() {
                 tags = listOf(unused),
                 pendingDelete = TagsUiState.PendingDelete(unused, taggedDayCount = 0),
             ),
+            searchText = "",
             onNavigateBack = {},
             onQueryChange = {},
             onRenameClick = {},
@@ -305,6 +346,7 @@ private fun TagsContentEmptyPreview() {
     TagDayTheme {
         TagsContent(
             uiState = TagsUiState(isLoading = false),
+            searchText = "",
             onNavigateBack = {},
             onQueryChange = {},
             onRenameClick = {},
